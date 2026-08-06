@@ -32,6 +32,23 @@ pub mod multisig_wallet {
         Ok(())
     }
 
+    pub fn create_proposal(ctx:Context<CreateProposal>,recipient:Pubkey,amount:u64)->Result<()>{
+        if !ctx.accounts.multisig.owners.contains(&ctx.accounts.creator.key()){
+            return Err(MultisigError::CreatorNotOwner.into());
+        }
+        ctx.accounts.proposal.wallet=ctx.accounts.multisig.key();
+        ctx.accounts.proposal.creator=ctx.accounts.creator.key();
+        ctx.accounts.proposal.recipient=recipient;
+        ctx.accounts.proposal.amount=amount;
+        ctx.accounts.proposal.approvals=Vec::new();
+        ctx.accounts.proposal.executed=false;
+
+        ctx.accounts.multisig.proposal_count+=1;
+        Ok(())
+
+        
+    }
+
     
 }
 
@@ -52,6 +69,26 @@ pub struct InitializeMultisig<'info> {
 
     pub system_program:Program<'info,System>
 
+}
+
+#[derive(Accounts)]
+pub struct CreateProposal<'info>{
+    #[account(mut)]
+    pub creator:Signer<'info>,
+
+    #[account(mut)]
+    pub multisig:Account<'info,Multisig>,
+
+    #[account(
+        init,
+        payer=creator,
+        space=8+Proposal::INIT_SPACE,
+        seeds=[b"proposal",multisig.key().as_ref(),multisig.proposal_count.to_le_bytes().as_ref()],
+        bump
+    )]
+    pub proposal:Account<'info,Proposal>,
+
+    pub system_program:Program<'info,System>
 }
 
 #[account]
@@ -86,4 +123,6 @@ pub enum MultisigError{
     InvalidThreshold,
     #[msg("Duplicate owners are not allowed")]
     DuplicateOwners,
+    #[msg("The creator is not an owner of the multisig")]
+    CreatorNotOwner
 }
