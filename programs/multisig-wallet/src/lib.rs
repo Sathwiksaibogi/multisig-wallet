@@ -41,12 +41,34 @@ pub mod multisig_wallet {
         ctx.accounts.proposal.recipient=recipient;
         ctx.accounts.proposal.amount=amount;
         ctx.accounts.proposal.approvals=Vec::new();
-        ctx.accounts.proposal.executed=false;
+        ctx.accounts.proposal.status=ProposalStatus::Pending;
+        ctx.accounts.proposal.proposal_id=ctx.accounts.multisig.proposal_count;
 
         ctx.accounts.multisig.proposal_count+=1;
         Ok(())
-
         
+    }
+
+    pub fn approve_proposal(ctx:Context<ApproveProposal>)->Result<()>{
+        if !matches!(ctx.accounts.proposal.status,ProposalStatus::Pending){
+            return Err(MultisigError::ProposalNotPending.into());
+
+        }
+        if ctx.accounts.multisig.owners.contains(&ctx.accounts.approver.key()){
+            if !ctx.accounts.proposal.approvals.contains(&ctx.accounts.approver.key()){
+                ctx.accounts.proposal.approvals.push(ctx.accounts.approver.key());
+            }
+            else{
+                return Err(MultisigError::DoubleVoting.into());
+            }
+        }else{
+            return Err(MultisigError::ApproverNotOwner.into());
+        }
+        if ctx.accounts.proposal.approvals.len() >= ctx.accounts.multisig.threshold as usize{
+            ctx.accounts.proposal.status=ProposalStatus::Ready;
+        }
+        
+        Ok(())
     }
 
     
@@ -91,6 +113,23 @@ pub struct CreateProposal<'info>{
     pub system_program:Program<'info,System>
 }
 
+#[derive(Accounts)]
+pub struct ApproveProposal<'info>{
+    #[account()]
+    pub approver:Signer<'info>,
+
+    #[account()]
+    pub multisig:Account<'info,Multisig>,
+
+    #[account(
+        mut,
+        seeds=[b"proposal",multisig.key().as_ref(),proposal.proposal_id.to_le_bytes().as_ref()],
+        bump,
+        constraint=proposal.wallet==multisig.key() @MultisigError::InvalidProposalWallet
+    )]
+    pub proposal:Account<'info,Proposal>,
+}
+
 #[account]
 #[derive(InitSpace)]
 pub struct Multisig {
@@ -105,12 +144,20 @@ pub struct Multisig {
 #[derive(InitSpace)]
 pub struct Proposal{
     pub wallet:Pubkey,
+    pub proposal_id:u64,
     pub creator:Pubkey,
     pub recipient:Pubkey,
     pub amount:u64,
     #[max_len(10)]
     pub approvals:Vec<Pubkey>,
-    pub executed:bool
+    pub status:ProposalStatus
+}
+
+#[derive(AnchorSerialize,AnchorDeserialize,Clone,InitSpace)]
+pub enum ProposalStatus{
+    Pending,
+    Ready,
+    Executed
 }
 
 #[error_code]
@@ -124,5 +171,13 @@ pub enum MultisigError{
     #[msg("Duplicate owners are not allowed")]
     DuplicateOwners,
     #[msg("The creator is not an owner of the multisig")]
-    CreatorNotOwner
+    CreatorNotOwner,
+    #[msg("The approver is not an owner of the multisig")]
+    ApproverNotOwner,
+    #[msg("The approver has already voted for this proposal")]
+    DoubleVoting,
+    #[msg("The proposal does not belong to the specified multisig wallet")]
+    InvalidProposalWallet,
+    #[msg("The proposal is not in pending state")]
+    ProposalNotPending
 }
