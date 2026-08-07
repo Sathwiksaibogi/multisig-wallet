@@ -1,4 +1,6 @@
+use anchor_lang::system_program;
 use anchor_lang::prelude::*;
+
 
 declare_id!("6kAdP7S1poZufGSxJ63LHr2KuLNjgmwNomjhu7WgAv8B");
 
@@ -25,6 +27,7 @@ pub mod multisig_wallet {
             }
 
         }
+        ctx.accounts.multisig.initializer=ctx.accounts.initializer.key();
         ctx.accounts.multisig.owners=owners;
         ctx.accounts.multisig.threshold=threshold;
         ctx.accounts.multisig.proposal_count=0;
@@ -35,6 +38,9 @@ pub mod multisig_wallet {
     pub fn create_proposal(ctx:Context<CreateProposal>,recipient:Pubkey,amount:u64)->Result<()>{
         if !ctx.accounts.multisig.owners.contains(&ctx.accounts.creator.key()){
             return Err(MultisigError::CreatorNotOwner.into());
+        }
+        if amount==0{
+            return Err(MultisigError::InvalidAmount.into());
         }
         ctx.accounts.proposal.wallet=ctx.accounts.multisig.key();
         ctx.accounts.proposal.creator=ctx.accounts.creator.key();
@@ -68,6 +74,35 @@ pub mod multisig_wallet {
             ctx.accounts.proposal.status=ProposalStatus::Ready;
         }
         
+        Ok(())
+    }
+
+    pub fn execute_proposal(ctx:Context<ExecuteProposal>)->Result<()>{
+        if !matches!(ctx.accounts.proposal.status,ProposalStatus::Ready){
+            return Err(MultisigError::ProposalNotReady.into());
+        }
+
+        let transfer_instruction=system_program::Transfer{
+            from:ctx.accounts.multisig.to_account_info(),
+            to:ctx.accounts.recipient.to_account_info(),
+        };
+        let signer_seeds=&[
+            b"multisig",
+            ctx.accounts.multisig.initializer.as_ref(),
+            &ctx.accounts.multisig.wallet_id.to_le_bytes(),
+            &[ctx.bumps.multisig],
+        ];
+
+        system_program::transfer(
+            CpiContext::new_with_signer(
+                ctx.accounts.system_program.to_account_info(),
+                transfer_instruction,
+                &[signer_seeds],
+            ),
+            ctx.accounts.proposal.amount,
+        )?;
+
+        ctx.accounts.proposal.status=ProposalStatus::Executed;
         Ok(())
     }
 
@@ -130,9 +165,43 @@ pub struct ApproveProposal<'info>{
     pub proposal:Account<'info,Proposal>,
 }
 
+#[derive(Accounts)]
+pub struct ExecuteProposal<'info>{
+    #[account(mut)]
+    pub executor:Signer<'info>,
+
+    #[account(
+        mut,
+        seeds=[b"multisig",multisig.initializer.key().as_ref(),multisig.wallet_id.to_le_bytes().as_ref()],
+        bump
+    )]
+    pub multisig:Account<'info,Multisig>,
+
+    #[account(
+        mut,
+        seeds=[b"proposal",multisig.key().as_ref(),proposal.proposal_id.to_le_bytes().as_ref()],
+        bump,
+        constraint=proposal.wallet==multisig.key() @MultisigError::InvalidProposalWallet,
+    )]
+    pub proposal:Account<'info,Proposal>,
+
+    /// CHECK: The recipient address is validated against proposal.recipient
+    /// before the transfer is executed.
+
+    #[account(
+        mut,
+        constraint=recipient.key()==proposal.recipient @MultisigError::InvalidRecipient
+    )]
+    pub recipient:UncheckedAccount<'info>,
+
+    #[account()]
+    pub system_program:Program<'info,System>
+}
+
 #[account]
 #[derive(InitSpace)]
 pub struct Multisig {
+    pub initializer:Pubkey,
     pub wallet_id:u64,
     #[max_len(10)]
     pub owners: Vec<Pubkey>,
@@ -179,5 +248,11 @@ pub enum MultisigError{
     #[msg("The proposal does not belong to the specified multisig wallet")]
     InvalidProposalWallet,
     #[msg("The proposal is not in pending state")]
-    ProposalNotPending
+    ProposalNotPending,
+    #[msg("The recipient does not match the proposal's recipient")]
+    InvalidRecipient,
+    #[msg("The proposal is not ready for execution")]
+    ProposalNotReady,
+    #[msg("The transfer amount must be greater than zero")]
+    InvalidAmount,
 }
