@@ -39,6 +39,24 @@ pub mod multisig_wallet {
         Ok(())
     }
 
+    pub fn deposit(ctx:Context<Deposit>,amount:u64)->Result<()>{
+        if amount==0{
+            return Err(MultisigError::InvalidAmount.into());
+        }
+        let transfer_instruction=system_program::Transfer{
+            from:ctx.accounts.depositor.to_account_info(),
+            to:ctx.accounts.vault.to_account_info(),
+        };
+        system_program::transfer(
+            CpiContext::new(
+                ctx.accounts.system_program.to_account_info(),
+                transfer_instruction
+            ),
+            amount,
+        )?;
+        Ok(())
+    }
+
     pub fn create_proposal(ctx:Context<CreateProposal>,recipient:Pubkey,amount:u64)->Result<()>{
         if !ctx.accounts.multisig.owners.contains(&ctx.accounts.creator.key()){
             return Err(MultisigError::CreatorNotOwner.into());
@@ -84,6 +102,12 @@ pub mod multisig_wallet {
     pub fn execute_proposal(ctx:Context<ExecuteProposal>)->Result<()>{
         if !matches!(ctx.accounts.proposal.status,ProposalStatus::Ready){
             return Err(MultisigError::ProposalNotReady.into());
+        }
+
+        let vault_balance = ctx.accounts.vault.lamports();
+
+        if vault_balance < ctx.accounts.proposal.amount {
+            return Err(MultisigError::InsufficientVaultFunds.into());
         }
 
         let multisig_key=ctx.accounts.multisig.key();
@@ -147,6 +171,7 @@ pub struct InitializeVault<'info>{
         init,
         payer=initializer,
         space=0,
+        owner = system_program::ID,
         seeds=[b"vault",multisig.key().as_ref()],
         bump
     )]
@@ -154,6 +179,27 @@ pub struct InitializeVault<'info>{
 
     #[account()]
     pub system_program:Program<'info,System>,
+}
+
+#[derive(Accounts)]
+pub struct Deposit<'info>{
+    #[account(mut)]
+    pub depositor:Signer<'info>,
+
+    #[account()]
+    pub multisig:Account<'info,Multisig>,
+
+    /// CHECK: The vault is a PDA derived from the multisig
+    /// and is used only as a SOL-holding account.
+    #[account(
+        mut,
+        seeds=[b"vault",multisig.key().as_ref()],
+        bump
+    )]
+    pub vault:UncheckedAccount<'info>,
+
+    #[account()]
+    pub system_program:Program<'info,System>
 }
 
 #[derive(Accounts)]
@@ -291,4 +337,6 @@ pub enum MultisigError{
     ProposalNotReady,
     #[msg("The transfer amount must be greater than zero")]
     InvalidAmount,
+    #[msg("The vault does not have enough SOL to execute this proposal")]
+    InsufficientVaultFunds,
 }
