@@ -35,6 +35,10 @@ pub mod multisig_wallet {
         Ok(())
     }
 
+    pub fn initialize_vault(_ctx:Context<InitializeVault>)->Result<()>{
+        Ok(())
+    }
+
     pub fn create_proposal(ctx:Context<CreateProposal>,recipient:Pubkey,amount:u64)->Result<()>{
         if !ctx.accounts.multisig.owners.contains(&ctx.accounts.creator.key()){
             return Err(MultisigError::CreatorNotOwner.into());
@@ -82,17 +86,18 @@ pub mod multisig_wallet {
             return Err(MultisigError::ProposalNotReady.into());
         }
 
-        let transfer_instruction=system_program::Transfer{
-            from:ctx.accounts.multisig.to_account_info(),
-            to:ctx.accounts.recipient.to_account_info(),
-        };
+        let multisig_key=ctx.accounts.multisig.key();
         let signer_seeds=&[
-            b"multisig",
-            ctx.accounts.multisig.initializer.as_ref(),
-            &ctx.accounts.multisig.wallet_id.to_le_bytes(),
-            &[ctx.bumps.multisig],
+            b"vault",
+            multisig_key.as_ref(),
+            &[ctx.bumps.vault],
         ];
 
+        let transfer_instruction=system_program::Transfer{
+            from:ctx.accounts.vault.to_account_info(),
+            to:ctx.accounts.recipient.to_account_info(),
+        };
+        
         system_program::transfer(
             CpiContext::new_with_signer(
                 ctx.accounts.system_program.to_account_info(),
@@ -126,6 +131,29 @@ pub struct InitializeMultisig<'info> {
 
     pub system_program:Program<'info,System>
 
+}
+
+#[derive(Accounts)]
+pub struct InitializeVault<'info>{
+    #[account(mut)]
+    pub initializer:Signer<'info>,
+
+    #[account()]
+    pub multisig:Account<'info,Multisig>,
+
+    /// CHECK: The vault is a PDA derived from the multisig and is used only
+    /// as a SOL-holding account.
+    #[account(
+        init,
+        payer=initializer,
+        space=0,
+        seeds=[b"vault",multisig.key().as_ref()],
+        bump
+    )]
+    pub vault:UncheckedAccount<'info>,
+
+    #[account()]
+    pub system_program:Program<'info,System>,
 }
 
 #[derive(Accounts)]
@@ -171,7 +199,6 @@ pub struct ExecuteProposal<'info>{
     pub executor:Signer<'info>,
 
     #[account(
-        mut,
         seeds=[b"multisig",multisig.initializer.key().as_ref(),multisig.wallet_id.to_le_bytes().as_ref()],
         bump
     )]
@@ -184,6 +211,15 @@ pub struct ExecuteProposal<'info>{
         constraint=proposal.wallet==multisig.key() @MultisigError::InvalidProposalWallet,
     )]
     pub proposal:Account<'info,Proposal>,
+
+    /// CHECK: The vault is a PDA derived from the multisig and is used only
+    /// as a SOL-holding account.
+    #[account(
+        mut,
+        seeds=[b"vault",multisig.key().as_ref()],
+        bump
+    )]
+    pub vault:UncheckedAccount<'info>,
 
     /// CHECK: The recipient address is validated against proposal.recipient
     /// before the transfer is executed.
