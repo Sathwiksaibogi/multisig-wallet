@@ -1,45 +1,50 @@
+
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { MultisigWallet } from "../target/types/multisig_wallet";
+
 import {
   Keypair,
   PublicKey,
   SystemProgram,
   LAMPORTS_PER_SOL,
 } from "@solana/web3.js";
+
 import { assert } from "chai";
 
 describe("multisig-wallet", () => {
-  // --------------------------------------------------
+  // ==================================================
   // PROVIDER
-  // --------------------------------------------------
+  // ==================================================
 
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
 
-  const program = anchor.workspace
-    .multisigWallet as Program<MultisigWallet>;
+  const program =
+    anchor.workspace.multisigWallet as Program<MultisigWallet>;
 
-  // --------------------------------------------------
+  // ==================================================
   // TEST ACCOUNTS
-  // --------------------------------------------------
+  // ==================================================
 
-  // Provider wallet will act as initializer + owner
+  // Provider wallet acts as initializer + first owner
   const initializer = provider.wallet;
 
-  // Two additional owners
+  // Additional multisig owners
   const owner2 = Keypair.generate();
   const owner3 = Keypair.generate();
 
-  // Recipient of SOL
+  // Account receiving SOL
   const recipient = Keypair.generate();
 
-  // Another account that can execute the proposal
+  // Account executing the proposal
+  // Executor does NOT need to be an owner
+  // in the current program design.
   const executor = Keypair.generate();
 
-  // --------------------------------------------------
+  // ==================================================
   // MULTISIG CONFIGURATION
-  // --------------------------------------------------
+  // ==================================================
 
   const walletId = new anchor.BN(1);
 
@@ -51,16 +56,17 @@ describe("multisig-wallet", () => {
 
   const threshold = 2;
 
-  // --------------------------------------------------
+  // ==================================================
   // PDAs
-  // --------------------------------------------------
+  // ==================================================
 
   let multisigPda: PublicKey;
+  let vaultPda: PublicKey;
   let proposalPda: PublicKey;
 
-  // --------------------------------------------------
+  // ==================================================
   // HELPER: AIRDROP SOL
-  // --------------------------------------------------
+  // ==================================================
 
   async function airdrop(
     publicKey: PublicKey,
@@ -79,7 +85,8 @@ describe("multisig-wallet", () => {
   }
 
   // ==================================================
-  // TEST 1: FUND ACCOUNTS
+  // TEST 1
+  // FUND TEST ACCOUNTS
   // ==================================================
 
   it("Funds test accounts", async () => {
@@ -88,52 +95,84 @@ describe("multisig-wallet", () => {
     await airdrop(executor.publicKey, 2);
     await airdrop(recipient.publicKey, 1);
 
-    console.log("Owner 2:", owner2.publicKey.toString());
-    console.log("Owner 3:", owner3.publicKey.toString());
-    console.log("Executor:", executor.publicKey.toString());
-    console.log("Recipient:", recipient.publicKey.toString());
+    console.log(
+      "Owner 2:",
+      owner2.publicKey.toString()
+    );
+
+    console.log(
+      "Owner 3:",
+      owner3.publicKey.toString()
+    );
+
+    console.log(
+      "Executor:",
+      executor.publicKey.toString()
+    );
+
+    console.log(
+      "Recipient:",
+      recipient.publicKey.toString()
+    );
   });
 
   // ==================================================
-  // TEST 2: INITIALIZE MULTISIG
+  // TEST 2
+  // INITIALIZE MULTISIG
   // ==================================================
 
   it("Initializes the multisig", async () => {
-    // Derive multisig PDA
-    [multisigPda] = PublicKey.findProgramAddressSync(
-      [
-        Buffer.from("multisig"),
-        initializer.publicKey.toBuffer(),
-        walletId.toArrayLike(Buffer, "le", 8),
-      ],
-      program.programId
-    );
+    // --------------------------------------------------
+    // DERIVE MULTISIG PDA
+    // --------------------------------------------------
+
+    [multisigPda] =
+      PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("multisig"),
+          initializer.publicKey.toBuffer(),
+          walletId.toArrayLike(Buffer, "le", 8),
+        ],
+        program.programId
+      );
 
     console.log(
       "Multisig PDA:",
       multisigPda.toString()
     );
 
-    // Initialize multisig
-    const tx = await program.methods
-      .initialize(
-        walletId,
-        owners,
-        threshold
-      )
-      .accounts({
-        initializer: initializer.publicKey,
-        multisig: multisigPda,
-        systemProgram: SystemProgram.programId,
-      })
-      .rpc();
+    // --------------------------------------------------
+    // INITIALIZE
+    // --------------------------------------------------
+
+    const tx =
+      await program.methods
+        .initialize(
+          walletId,
+          owners,
+          threshold
+        )
+        .accounts({
+          initializer:
+            initializer.publicKey,
+
+          multisig:
+            multisigPda,
+
+          systemProgram:
+            SystemProgram.programId,
+        })
+        .rpc();
 
     console.log(
       "Initialize transaction:",
       tx
     );
 
-    // Fetch account
+    // --------------------------------------------------
+    // FETCH MULTISIG
+    // --------------------------------------------------
+
     const multisig =
       await program.account.multisig.fetch(
         multisigPda
@@ -183,56 +222,325 @@ describe("multisig-wallet", () => {
       owner3.publicKey.toString()
     );
 
-    console.log("Multisig initialized successfully");
+    console.log(
+      "Multisig initialized successfully"
+    );
   });
 
   // ==================================================
-  // TEST 3: CREATE PROPOSAL
+  // TEST 3
+  // INITIALIZE VAULT
+  // ==================================================
+
+  it("Initializes the vault", async () => {
+    // --------------------------------------------------
+    // DERIVE VAULT PDA
+    // --------------------------------------------------
+
+    [vaultPda] =
+      PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("vault"),
+          multisigPda.toBuffer(),
+        ],
+        program.programId
+      );
+
+    console.log(
+      "Vault PDA:",
+      vaultPda.toString()
+    );
+
+    // --------------------------------------------------
+    // INITIALIZE VAULT
+    // --------------------------------------------------
+
+    const tx =
+      await program.methods
+        .initializeVault()
+        .accounts({
+          initializer:
+            initializer.publicKey,
+
+          multisig:
+            multisigPda,
+
+          vault:
+            vaultPda,
+
+          systemProgram:
+            SystemProgram.programId,
+        })
+        .rpc();
+
+    console.log(
+      "Initialize vault transaction:",
+      tx
+    );
+
+    // --------------------------------------------------
+    // FETCH VAULT ACCOUNT
+    // --------------------------------------------------
+
+    const vaultAccount =
+      await provider.connection.getAccountInfo(
+        vaultPda
+      );
+
+    // Vault must exist
+    assert.isNotNull(vaultAccount);
+
+    // --------------------------------------------------
+    // CHECK VAULT OWNER
+    // --------------------------------------------------
+    //
+    // vault is an UncheckedAccount with space = 0.
+    //
+    // Therefore this account is owned by the System
+    // Program, NOT by our multisig program.
+    //
+
+    assert.equal(
+      vaultAccount!.owner.toString(),
+      SystemProgram.programId.toString()
+    );
+
+    console.log(
+      "Vault initialized successfully"
+    );
+
+    console.log(
+      "Vault owner:",
+      vaultAccount!.owner.toString()
+    );
+  });
+
+  // ==================================================
+  // TEST 4
+  // DEPOSIT SOL INTO VAULT
+  // ==================================================
+
+  it("Deposits SOL into the vault", async () => {
+    // --------------------------------------------------
+    // DEPOSIT AMOUNT
+    // --------------------------------------------------
+
+    const amount =
+      2 * LAMPORTS_PER_SOL;
+
+    // --------------------------------------------------
+    // CHECK BALANCE BEFORE
+    // --------------------------------------------------
+
+    const vaultBalanceBefore =
+      await provider.connection.getBalance(
+        vaultPda
+      );
+
+    console.log(
+      "Vault balance before deposit:",
+      vaultBalanceBefore
+    );
+
+    // --------------------------------------------------
+    // DEPOSIT THROUGH PROGRAM
+    // --------------------------------------------------
+    //
+    // IMPORTANT:
+    //
+    // We are NOT directly transferring SOL to the PDA.
+    //
+    // The transaction calls:
+    //
+    // deposit(2 SOL)
+    //
+    // and the program performs a CPI to the
+    // System Program.
+    //
+
+    const tx =
+      await program.methods
+        .deposit(
+          new anchor.BN(amount)
+        )
+        .accounts({
+          depositor:
+            initializer.publicKey,
+
+          multisig:
+            multisigPda,
+
+          vault:
+            vaultPda,
+
+          systemProgram:
+            SystemProgram.programId,
+        })
+        .rpc();
+
+    console.log(
+      "Deposit transaction:",
+      tx
+    );
+
+    // --------------------------------------------------
+    // CHECK BALANCE AFTER
+    // --------------------------------------------------
+
+    const vaultBalanceAfter =
+      await provider.connection.getBalance(
+        vaultPda
+      );
+
+    console.log(
+      "Vault balance after deposit:",
+      vaultBalanceAfter
+    );
+
+    // --------------------------------------------------
+    // VERIFY EXACT INCREASE
+    // --------------------------------------------------
+
+    assert.equal(
+      vaultBalanceAfter - vaultBalanceBefore,
+      amount
+    );
+
+    console.log(
+      "Vault funded successfully through deposit instruction"
+    );
+  });
+
+  // ==================================================
+  // TEST 5
+  // REJECT ZERO DEPOSIT
+  // ==================================================
+
+  it("Rejects zero deposit", async () => {
+    try {
+      await program.methods
+        .deposit(
+          new anchor.BN(0)
+        )
+        .accounts({
+          depositor:
+            initializer.publicKey,
+
+          multisig:
+            multisigPda,
+
+          vault:
+            vaultPda,
+
+          systemProgram:
+            SystemProgram.programId,
+        })
+        .rpc();
+
+      // If execution reaches here,
+      // the program incorrectly allowed
+      // a zero deposit.
+
+      assert.fail(
+        "Transaction should have failed"
+      );
+
+    } catch (error: any) {
+      console.log(
+        "Zero deposit correctly rejected"
+      );
+
+      const errorCode =
+        error?.error?.errorCode?.code;
+
+      console.log(
+        "Error code:",
+        errorCode
+      );
+
+      assert.equal(
+        errorCode,
+        "InvalidAmount"
+      );
+    }
+  });
+
+  // ==================================================
+  // TEST 6
+  // CREATE PROPOSAL
   // ==================================================
 
   it("Creates a proposal", async () => {
-    // Current proposal count is 0.
-    // Therefore proposal ID = 0.
-    const proposalId = new anchor.BN(0);
+    // Current proposal_count = 0
+    // Therefore proposal_id = 0
 
-    // Derive proposal PDA
-    [proposalPda] = PublicKey.findProgramAddressSync(
-      [
-        Buffer.from("proposal"),
-        multisigPda.toBuffer(),
-        proposalId.toArrayLike(Buffer, "le", 8),
-      ],
-      program.programId
-    );
+    const proposalId =
+      new anchor.BN(0);
+
+    // --------------------------------------------------
+    // DERIVE PROPOSAL PDA
+    // --------------------------------------------------
+
+    [proposalPda] =
+      PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("proposal"),
+          multisigPda.toBuffer(),
+          proposalId.toArrayLike(
+            Buffer,
+            "le",
+            8
+          ),
+        ],
+        program.programId
+      );
 
     console.log(
       "Proposal PDA:",
       proposalPda.toString()
     );
 
+    // --------------------------------------------------
+    // PROPOSAL AMOUNT
+    // --------------------------------------------------
+
     const amount =
       0.5 * LAMPORTS_PER_SOL;
 
-    // Create proposal
-    const tx = await program.methods
-      .createProposal(
-        recipient.publicKey,
-        new anchor.BN(amount)
-      )
-      .accounts({
-        creator: initializer.publicKey,
-        multisig: multisigPda,
-        proposal: proposalPda,
-        systemProgram: SystemProgram.programId,
-      })
-      .rpc();
+    // --------------------------------------------------
+    // CREATE PROPOSAL
+    // --------------------------------------------------
+
+    const tx =
+      await program.methods
+        .createProposal(
+          recipient.publicKey,
+          new anchor.BN(amount)
+        )
+        .accounts({
+          creator:
+            initializer.publicKey,
+
+          multisig:
+            multisigPda,
+
+          proposal:
+            proposalPda,
+
+          systemProgram:
+            SystemProgram.programId,
+        })
+        .rpc();
 
     console.log(
       "Create proposal transaction:",
       tx
     );
 
-    // Fetch proposal
+    // --------------------------------------------------
+    // FETCH PROPOSAL
+    // --------------------------------------------------
+
     const proposal =
       await program.account.proposal.fetch(
         proposalPda
@@ -272,12 +580,15 @@ describe("multisig-wallet", () => {
       0
     );
 
-    // Anchor enum representation
+    // Proposal must start Pending
     assert.isTrue(
       "pending" in proposal.status
     );
 
-    // Check proposal counter
+    // --------------------------------------------------
+    // CHECK PROPOSAL COUNTER
+    // --------------------------------------------------
+
     const multisig =
       await program.account.multisig.fetch(
         multisigPda
@@ -294,23 +605,34 @@ describe("multisig-wallet", () => {
   });
 
   // ==================================================
-  // TEST 4: FIRST APPROVAL
+  // TEST 7
+  // FIRST APPROVAL
   // ==================================================
 
   it("Allows the first owner to approve", async () => {
-    const tx = await program.methods
-      .approveProposal()
-      .accounts({
-        approver: initializer.publicKey,
-        multisig: multisigPda,
-        proposal: proposalPda,
-      })
-      .rpc();
+    const tx =
+      await program.methods
+        .approveProposal()
+        .accounts({
+          approver:
+            initializer.publicKey,
+
+          multisig:
+            multisigPda,
+
+          proposal:
+            proposalPda,
+        })
+        .rpc();
 
     console.log(
       "First approval transaction:",
       tx
     );
+
+    // --------------------------------------------------
+    // FETCH PROPOSAL
+    // --------------------------------------------------
 
     const proposal =
       await program.account.proposal.fetch(
@@ -323,13 +645,14 @@ describe("multisig-wallet", () => {
       1
     );
 
+    // Initializer must be the approver
     assert.equal(
       proposal.approvals[0].toString(),
       initializer.publicKey.toString()
     );
 
-    // Threshold is 2, so proposal should
-    // still be Pending.
+    // Threshold is 2.
+    // Therefore proposal is still Pending.
     assert.isTrue(
       "pending" in proposal.status
     );
@@ -340,52 +663,188 @@ describe("multisig-wallet", () => {
   });
 
   // ==================================================
-  // TEST 5: SECOND APPROVAL
+  // TEST 8
+  // DOUBLE VOTING
+  //
+  // IMPORTANT:
+  //
+  // This test MUST happen while proposal is Pending.
+  // ==================================================
+
+  it("Rejects double voting", async () => {
+    try {
+      await program.methods
+        .approveProposal()
+        .accounts({
+          approver:
+            initializer.publicKey,
+
+          multisig:
+            multisigPda,
+
+          proposal:
+            proposalPda,
+        })
+        .rpc();
+
+      // If execution reaches here,
+      // the program incorrectly allowed
+      // double voting.
+
+      assert.fail(
+        "Transaction should have failed"
+      );
+
+    } catch (error: any) {
+      console.log(
+        "Double voting correctly rejected"
+      );
+
+      const errorCode =
+        error?.error?.errorCode?.code;
+
+      console.log(
+        "Error code:",
+        errorCode
+      );
+
+      assert.equal(
+        errorCode,
+        "DoubleVoting"
+      );
+    }
+  });
+
+  // ==================================================
+  // TEST 9
+  // NON-OWNER APPROVAL
+  //
+  // IMPORTANT:
+  //
+  // This also MUST happen while proposal is Pending.
+  // ==================================================
+
+  it("Rejects approval from a non-owner", async () => {
+    const nonOwner =
+      Keypair.generate();
+
+    // Give non-owner enough SOL to pay
+    // transaction fees.
+    await airdrop(
+      nonOwner.publicKey,
+      1
+    );
+
+    try {
+      await program.methods
+        .approveProposal()
+        .accounts({
+          approver:
+            nonOwner.publicKey,
+
+          multisig:
+            multisigPda,
+
+          proposal:
+            proposalPda,
+        })
+        .signers([nonOwner])
+        .rpc();
+
+      // If execution reaches here,
+      // the program incorrectly allowed
+      // a non-owner to approve.
+
+      assert.fail(
+        "Transaction should have failed"
+      );
+
+    } catch (error: any) {
+      console.log(
+        "Non-owner approval correctly rejected"
+      );
+
+      const errorCode =
+        error?.error?.errorCode?.code;
+
+      console.log(
+        "Error code:",
+        errorCode
+      );
+
+      assert.equal(
+        errorCode,
+        "ApproverNotOwner"
+      );
+    }
+  });
+
+  // ==================================================
+  // TEST 10
+  // SECOND APPROVAL
+  //
+  // This happens AFTER the negative approval tests.
   // ==================================================
 
   it("Allows the second owner to approve and marks proposal Ready", async () => {
-    const tx = await program.methods
-      .approveProposal()
-      .accounts({
-        approver: owner2.publicKey,
-        multisig: multisigPda,
-        proposal: proposalPda,
-      })
-      .signers([owner2])
-      .rpc();
+    const tx =
+      await program.methods
+        .approveProposal()
+        .accounts({
+          approver:
+            owner2.publicKey,
+
+          multisig:
+            multisigPda,
+
+          proposal:
+            proposalPda,
+        })
+        .signers([owner2])
+        .rpc();
 
     console.log(
       "Second approval transaction:",
       tx
     );
 
+    // --------------------------------------------------
+    // FETCH PROPOSAL
+    // --------------------------------------------------
+
     const proposal =
       await program.account.proposal.fetch(
         proposalPda
       );
 
-    // Two approvals
+    // There must now be two approvals.
     assert.equal(
       proposal.approvals.length,
       2
     );
 
+    // Initializer approved
     assert.isTrue(
       proposal.approvals.some(
-        (key) =>
-          key.equals(initializer.publicKey)
+        key =>
+          key.equals(
+            initializer.publicKey
+          )
       )
     );
 
+    // Owner2 approved
     assert.isTrue(
       proposal.approvals.some(
-        (key) =>
-          key.equals(owner2.publicKey)
+        key =>
+          key.equals(
+            owner2.publicKey
+          )
       )
     );
 
     // Threshold = 2
-    // Therefore status must become Ready.
+    // Therefore proposal must become Ready.
     assert.isTrue(
       "ready" in proposal.status
     );
@@ -396,139 +855,125 @@ describe("multisig-wallet", () => {
   });
 
   // ==================================================
-  // TEST 6: PREVENT DOUBLE VOTING
-  // ==================================================
-
-  it("Rejects double voting", async () => {
-    try {
-      await program.methods
-        .approveProposal()
-        .accounts({
-          approver: initializer.publicKey,
-          multisig: multisigPda,
-          proposal: proposalPda,
-        })
-        .rpc();
-
-      assert.fail(
-        "Transaction should have failed"
-      );
-    } catch (error) {
-      console.log(
-        "Double voting correctly rejected"
-      );
-
-      assert.include(
-        error.toString(),
-        "DoubleVoting"
-      );
-    }
-  });
-
-  // ==================================================
-  // TEST 7: PREVENT NON-OWNER APPROVAL
-  // ==================================================
-
-  it("Rejects approval from a non-owner", async () => {
-    const nonOwner = Keypair.generate();
-
-    await airdrop(
-      nonOwner.publicKey,
-      1
-    );
-
-    try {
-      await program.methods
-        .approveProposal()
-        .accounts({
-          approver: nonOwner.publicKey,
-          multisig: multisigPda,
-          proposal: proposalPda,
-        })
-        .signers([nonOwner])
-        .rpc();
-
-      assert.fail(
-        "Transaction should have failed"
-      );
-    } catch (error) {
-      console.log(
-        "Non-owner approval correctly rejected"
-      );
-
-      assert.include(
-        error.toString(),
-        "ApproverNotOwner"
-      );
-    }
-  });
-
-  // ==================================================
-  // TEST 8: EXECUTE PROPOSAL
+  // TEST 11
+  // EXECUTE PROPOSAL
   // ==================================================
 
   it("Executes the approved proposal", async () => {
     const amount =
       0.5 * LAMPORTS_PER_SOL;
 
-    // Fund the multisig PDA.
-    // The PDA is the source of the SOL transfer.
-    await airdrop(
-      multisigPda,
-      2
-    );
+    // --------------------------------------------------
+    // BALANCES BEFORE
+    // --------------------------------------------------
 
-    const balanceBefore =
+    const vaultBalanceBefore =
+      await provider.connection.getBalance(
+        vaultPda
+      );
+
+    const recipientBalanceBefore =
       await provider.connection.getBalance(
         recipient.publicKey
       );
 
     console.log(
-      "Recipient balance before:",
-      balanceBefore
+      "Vault balance before:",
+      vaultBalanceBefore
     );
 
-    // Execute proposal
-    const tx = await program.methods
-      .executeProposal()
-      .accounts({
-        executor: executor.publicKey,
-        multisig: multisigPda,
-        proposal: proposalPda,
-        recipient: recipient.publicKey,
-        systemProgram: SystemProgram.programId,
-      })
-      .signers([executor])
-      .rpc();
+    console.log(
+      "Recipient balance before:",
+      recipientBalanceBefore
+    );
+
+    // --------------------------------------------------
+    // EXECUTE PROPOSAL
+    // --------------------------------------------------
+
+    const tx =
+      await program.methods
+        .executeProposal()
+        .accounts({
+          executor:
+            executor.publicKey,
+
+          multisig:
+            multisigPda,
+
+          proposal:
+            proposalPda,
+
+          vault:
+            vaultPda,
+
+          recipient:
+            recipient.publicKey,
+
+          systemProgram:
+            SystemProgram.programId,
+        })
+        .signers([executor])
+        .rpc();
 
     console.log(
       "Execute transaction:",
       tx
     );
 
-    const balanceAfter =
+    // --------------------------------------------------
+    // BALANCES AFTER
+    // --------------------------------------------------
+
+    const vaultBalanceAfter =
+      await provider.connection.getBalance(
+        vaultPda
+      );
+
+    const recipientBalanceAfter =
       await provider.connection.getBalance(
         recipient.publicKey
       );
 
     console.log(
-      "Recipient balance after:",
-      balanceAfter
+      "Vault balance after:",
+      vaultBalanceAfter
     );
 
-    // Recipient should receive the amount.
+    console.log(
+      "Recipient balance after:",
+      recipientBalanceAfter
+    );
+
+    // --------------------------------------------------
+    // CHECK RECIPIENT
+    // --------------------------------------------------
+
     assert.equal(
-      balanceAfter - balanceBefore,
+      recipientBalanceAfter -
+        recipientBalanceBefore,
       amount
     );
 
-    // Fetch proposal again
+    // --------------------------------------------------
+    // CHECK VAULT
+    // --------------------------------------------------
+
+    assert.equal(
+      vaultBalanceBefore -
+        vaultBalanceAfter,
+      amount
+    );
+
+    // --------------------------------------------------
+    // CHECK PROPOSAL STATUS
+    // --------------------------------------------------
+
     const proposal =
       await program.account.proposal.fetch(
         proposalPda
       );
 
-    // Proposal must now be Executed
     assert.isTrue(
       "executed" in proposal.status
     );
@@ -539,7 +984,8 @@ describe("multisig-wallet", () => {
   });
 
   // ==================================================
-  // TEST 9: CANNOT EXECUTE AGAIN
+  // TEST 12
+  // CANNOT EXECUTE AGAIN
   // ==================================================
 
   it("Rejects executing an already executed proposal", async () => {
@@ -547,27 +993,53 @@ describe("multisig-wallet", () => {
       await program.methods
         .executeProposal()
         .accounts({
-          executor: executor.publicKey,
-          multisig: multisigPda,
-          proposal: proposalPda,
-          recipient: recipient.publicKey,
-          systemProgram: SystemProgram.programId,
+          executor:
+            executor.publicKey,
+
+          multisig:
+            multisigPda,
+
+          proposal:
+            proposalPda,
+
+          vault:
+            vaultPda,
+
+          recipient:
+            recipient.publicKey,
+
+          systemProgram:
+            SystemProgram.programId,
         })
         .signers([executor])
         .rpc();
 
+      // If we reach this point,
+      // the program incorrectly allowed
+      // a second execution.
+
       assert.fail(
         "Transaction should have failed"
       );
-    } catch (error) {
+
+    } catch (error: any) {
       console.log(
         "Second execution correctly rejected"
       );
 
-      assert.include(
-        error.toString(),
+      const errorCode =
+        error?.error?.errorCode?.code;
+
+      console.log(
+        "Error code:",
+        errorCode
+      );
+
+      assert.equal(
+        errorCode,
         "ProposalNotReady"
       );
     }
   });
 });
+
