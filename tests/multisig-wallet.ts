@@ -1174,6 +1174,581 @@ it("Removes an executed proposal and refunds its lamports to the remover", async
   );
 });
 
+  // ==================================================
+  // TEST 14
+  // CREATE SECOND PROPOSAL FOR CANCELLATION
+  // ==================================================
+
+  it("Creates a second proposal for cancellation", async () => {
+    // Current proposal_count = 1
+    // Therefore the new proposal_id = 1
+
+    const proposalId =
+      new anchor.BN(1);
+
+    // --------------------------------------------------
+    // DERIVE SECOND PROPOSAL PDA
+    // --------------------------------------------------
+
+    const [cancelProposalPda] =
+      PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("proposal"),
+          multisigPda.toBuffer(),
+          proposalId.toArrayLike(
+            Buffer,
+            "le",
+            8
+          ),
+        ],
+        program.programId
+      );
+
+    // Store this PDA globally so the following
+    // cancellation tests can use it.
+    proposalPda = cancelProposalPda;
+
+    console.log(
+      "Cancellation proposal PDA:",
+      proposalPda.toString()
+    );
+
+    // --------------------------------------------------
+    // CREATE PROPOSAL
+    // --------------------------------------------------
+
+    const amount =
+      0.25 * LAMPORTS_PER_SOL;
+
+    const tx =
+      await program.methods
+        .createProposal(
+          recipient.publicKey,
+          new anchor.BN(amount)
+        )
+        .accounts({
+          creator:
+            initializer.publicKey,
+
+          multisig:
+            multisigPda,
+
+          proposal:
+            proposalPda,
+
+          systemProgram:
+            SystemProgram.programId,
+        })
+        .rpc();
+
+    console.log(
+      "Create cancellation proposal transaction:",
+      tx
+    );
+
+    // --------------------------------------------------
+    // FETCH PROPOSAL
+    // --------------------------------------------------
+
+    const proposal =
+      await program.account.proposal.fetch(
+        proposalPda
+      );
+
+    // --------------------------------------------------
+    // ASSERTIONS
+    // --------------------------------------------------
+
+    assert.equal(
+      proposal.proposalId.toNumber(),
+      1
+    );
+
+    assert.equal(
+      proposal.wallet.toString(),
+      multisigPda.toString()
+    );
+
+    assert.equal(
+      proposal.creator.toString(),
+      initializer.publicKey.toString()
+    );
+
+    assert.equal(
+      proposal.recipient.toString(),
+      recipient.publicKey.toString()
+    );
+
+    assert.equal(
+      proposal.amount.toNumber(),
+      amount
+    );
+
+    assert.equal(
+      proposal.approvals.length,
+      0
+    );
+
+    assert.equal(
+      proposal.cancels.length,
+      0
+    );
+
+    assert.isTrue(
+      "pending" in proposal.status
+    );
+
+    console.log(
+      "Second proposal created successfully"
+    );
+  });
+
+
+  // ==================================================
+  // TEST 15
+  // FIRST OWNER CANCELS PROPOSAL
+  // ==================================================
+
+  it("Allows the first owner to cancel the proposal", async () => {
+    const tx =
+      await program.methods
+        .cancelProposal()
+        .accounts({
+          canceller:
+            initializer.publicKey,
+
+          multisig:
+            multisigPda,
+
+          proposal:
+            proposalPda,
+        })
+        .rpc();
+
+    console.log(
+      "First cancellation transaction:",
+      tx
+    );
+
+    // --------------------------------------------------
+    // FETCH PROPOSAL
+    // --------------------------------------------------
+
+    const proposal =
+      await program.account.proposal.fetch(
+        proposalPda
+      );
+
+    // --------------------------------------------------
+    // ASSERTIONS
+    // --------------------------------------------------
+
+    assert.equal(
+      proposal.cancels.length,
+      1
+    );
+
+    assert.equal(
+      proposal.cancels[0].toString(),
+      initializer.publicKey.toString()
+    );
+
+    // Threshold = 2.
+    // Only one cancellation exists,
+    // therefore proposal must still be Pending.
+    assert.isTrue(
+      "pending" in proposal.status
+    );
+
+    console.log(
+      "First cancellation recorded successfully"
+    );
+  });
+
+
+  // ==================================================
+  // TEST 16
+  // DOUBLE CANCELLATION
+  // ==================================================
+
+  it("Rejects double cancellation by the same owner", async () => {
+    try {
+      await program.methods
+        .cancelProposal()
+        .accounts({
+          canceller:
+            initializer.publicKey,
+
+          multisig:
+            multisigPda,
+
+          proposal:
+            proposalPda,
+        })
+        .rpc();
+
+      // If execution reaches here,
+      // the program incorrectly allowed
+      // the same owner to cancel twice.
+
+      assert.fail(
+        "Transaction should have failed"
+      );
+
+    } catch (error: any) {
+      console.log(
+        "Double cancellation correctly rejected"
+      );
+
+      const errorCode =
+        error?.error?.errorCode?.code;
+
+      console.log(
+        "Error code:",
+        errorCode
+      );
+
+      // Your current program uses DoubleVoting
+      // for duplicate cancellation as well.
+      assert.equal(
+        errorCode,
+        "DoubleCancellation"
+      );
+    }
+  });
+
+
+  // ==================================================
+  // TEST 17
+  // NON-OWNER CANCELLATION
+  // ==================================================
+
+  it("Rejects cancellation from a non-owner", async () => {
+    const nonOwner =
+      Keypair.generate();
+
+    // Give non-owner SOL to pay transaction fees.
+    await airdrop(
+      nonOwner.publicKey,
+      1
+    );
+
+    try {
+      await program.methods
+        .cancelProposal()
+        .accounts({
+          canceller:
+            nonOwner.publicKey,
+
+          multisig:
+            multisigPda,
+
+          proposal:
+            proposalPda,
+        })
+        .signers([nonOwner])
+        .rpc();
+
+      // If execution reaches here,
+      // the program incorrectly allowed
+      // a non-owner to cancel.
+
+      assert.fail(
+        "Transaction should have failed"
+      );
+
+    } catch (error: any) {
+      console.log(
+        "Non-owner cancellation correctly rejected"
+      );
+
+      const errorCode =
+        error?.error?.errorCode?.code;
+
+      console.log(
+        "Error code:",
+        errorCode
+      );
+
+      assert.equal(
+        errorCode,
+        "CancellerNotOwner"
+      );
+    }
+  });
+
+
+  // ==================================================
+  // TEST 18
+  // SECOND OWNER CANCELS
+  //
+  // Threshold = 2
+  // Therefore this cancellation should change
+  // the proposal status to Cancelled.
+  // ==================================================
+
+  it("Allows the second owner to cancel and marks proposal Cancelled", async () => {
+    const tx =
+      await program.methods
+        .cancelProposal()
+        .accounts({
+          canceller:
+            owner2.publicKey,
+
+          multisig:
+            multisigPda,
+
+          proposal:
+            proposalPda,
+        })
+        .signers([owner2])
+        .rpc();
+
+    console.log(
+      "Second cancellation transaction:",
+      tx
+    );
+
+    // --------------------------------------------------
+    // FETCH PROPOSAL
+    // --------------------------------------------------
+
+    const proposal =
+      await program.account.proposal.fetch(
+        proposalPda
+      );
+
+    // --------------------------------------------------
+    // CHECK CANCELLATIONS
+    // --------------------------------------------------
+
+    assert.equal(
+      proposal.cancels.length,
+      2
+    );
+
+    // Initializer cancelled
+    assert.isTrue(
+      proposal.cancels.some(
+        key =>
+          key.equals(
+            initializer.publicKey
+          )
+      )
+    );
+
+    // Owner2 cancelled
+    assert.isTrue(
+      proposal.cancels.some(
+        key =>
+          key.equals(
+            owner2.publicKey
+          )
+      )
+    );
+
+    // --------------------------------------------------
+    // CHECK STATUS
+    // --------------------------------------------------
+
+    assert.isTrue(
+      "cancelled" in proposal.status
+    );
+
+    console.log(
+      "Proposal reached cancellation threshold"
+    );
+
+    console.log(
+      "Proposal status is Cancelled"
+    );
+  });
+
+
+  // ==================================================
+  // TEST 19
+  // CANNOT EXECUTE CANCELLED PROPOSAL
+  // ==================================================
+
+  it("Rejects execution of a cancelled proposal", async () => {
+    try {
+      await program.methods
+        .executeProposal()
+        .accounts({
+          executor:
+            executor.publicKey,
+
+          multisig:
+            multisigPda,
+
+          proposal:
+            proposalPda,
+
+          vault:
+            vaultPda,
+
+          recipient:
+            recipient.publicKey,
+
+          systemProgram:
+            SystemProgram.programId,
+        })
+        .signers([executor])
+        .rpc();
+
+      // If execution reaches here,
+      // the program incorrectly allowed
+      // execution of a cancelled proposal.
+
+      assert.fail(
+        "Transaction should have failed"
+      );
+
+    } catch (error: any) {
+      console.log(
+        "Cancelled proposal execution correctly rejected"
+      );
+
+      const errorCode =
+        error?.error?.errorCode?.code;
+
+      console.log(
+        "Error code:",
+        errorCode
+      );
+
+      assert.equal(
+        errorCode,
+        "ProposalNotReady"
+      );
+    }
+  });
+
+
+  // ==================================================
+  // TEST 20
+  // REMOVE CANCELLED PROPOSAL
+  // ==================================================
+
+  it("Removes a cancelled proposal and refunds its lamports to the remover", async () => {
+    // --------------------------------------------------
+    // CHECK PROPOSAL ACCOUNT BEFORE REMOVAL
+    // --------------------------------------------------
+
+    const proposalAccountBefore =
+      await provider.connection.getAccountInfo(
+        proposalPda
+      );
+
+    assert.isNotNull(
+      proposalAccountBefore
+    );
+
+    const proposalLamportsBefore =
+      proposalAccountBefore!.lamports;
+
+    console.log(
+      "Cancelled proposal lamports before removal:",
+      proposalLamportsBefore
+    );
+
+    // --------------------------------------------------
+    // CHECK REMOVER BALANCE BEFORE
+    // --------------------------------------------------
+
+    const removerBalanceBefore =
+      await provider.connection.getBalance(
+        initializer.publicKey
+      );
+
+    console.log(
+      "Remover balance before:",
+      removerBalanceBefore
+    );
+
+    // --------------------------------------------------
+    // REMOVE PROPOSAL
+    // --------------------------------------------------
+
+    const tx =
+      await program.methods
+        .removeProposal()
+        .accounts({
+          remover:
+            initializer.publicKey,
+
+          multisig:
+            multisigPda,
+
+          proposal:
+            proposalPda,
+        })
+        .rpc();
+
+    console.log(
+      "Remove cancelled proposal transaction:",
+      tx
+    );
+
+    // --------------------------------------------------
+    // CHECK PROPOSAL ACCOUNT
+    // --------------------------------------------------
+
+    const proposalAccountAfter =
+      await provider.connection.getAccountInfo(
+        proposalPda
+      );
+
+    // Account should no longer exist.
+    assert.isNull(
+      proposalAccountAfter
+    );
+
+    console.log(
+      "Cancelled proposal account successfully closed"
+    );
+
+    // --------------------------------------------------
+    // CHECK REMOVER BALANCE AFTER
+    // --------------------------------------------------
+
+    const removerBalanceAfter =
+      await provider.connection.getBalance(
+        initializer.publicKey
+      );
+
+    console.log(
+      "Remover balance after:",
+      removerBalanceAfter
+    );
+
+    // --------------------------------------------------
+    // VERIFY LAMPORT REFUND
+    // --------------------------------------------------
+    //
+    // The transaction itself costs some lamports
+    // as a transaction fee.
+    //
+    // Therefore we cannot simply expect:
+    //
+    // balanceAfter - balanceBefore
+    //     === proposalLamportsBefore
+    //
+    // Instead, the important verification is that
+    // the proposal account was closed and its
+    // lamports were returned to the remover.
+    //
+
+    assert.isAbove(
+      removerBalanceAfter,
+      removerBalanceBefore
+    );
+
+    console.log(
+      "Proposal lamports successfully returned to remover"
+    );
+  });
+
 
 });
 
