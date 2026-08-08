@@ -1041,5 +1041,139 @@ describe("multisig-wallet", () => {
       );
     }
   });
+
+
+// ==================================================
+// TEST 13
+// REMOVE EXECUTED PROPOSAL
+// ==================================================
+
+it("Removes an executed proposal and refunds its lamports to the remover", async () => {
+  // --------------------------------------------------
+  // CHECK PROPOSAL EXISTS BEFORE REMOVAL
+  // --------------------------------------------------
+
+  const proposalBefore =
+    await provider.connection.getAccountInfo(
+      proposalPda
+    );
+
+  assert.isNotNull(
+    proposalBefore
+  );
+
+  // Store the proposal account's lamports
+  // before it is closed.
+  const proposalLamports =
+    proposalBefore!.lamports;
+
+  console.log(
+    "Proposal lamports before removal:",
+    proposalLamports
+  );
+
+  // --------------------------------------------------
+  // REMOVER BALANCE BEFORE
+  // --------------------------------------------------
+
+  const removerBalanceBefore =
+    await provider.connection.getBalance(
+      initializer.publicKey
+    );
+
+  console.log(
+    "Remover balance before:",
+    removerBalanceBefore
+  );
+
+  // --------------------------------------------------
+  // REMOVE PROPOSAL
+  // --------------------------------------------------
+
+  const tx =
+    await program.methods
+      .removeProposal()
+      .accounts({
+        remover:
+          initializer.publicKey,
+
+        multisig:
+          multisigPda,
+
+        proposal:
+          proposalPda,
+      })
+      .rpc();
+
+  console.log(
+    "Remove proposal transaction:",
+    tx
+  );
+
+  // --------------------------------------------------
+  // CHECK PROPOSAL ACCOUNT
+  // --------------------------------------------------
+  //
+  // close = remover means Anchor should:
+  //
+  // 1. Close the proposal account
+  // 2. Transfer its remaining lamports
+  //    to the remover
+  // 3. Remove the account from the ledger
+  //
+
+  const proposalAfter =
+    await provider.connection.getAccountInfo(
+      proposalPda
+    );
+
+  assert.isNull(
+    proposalAfter
+  );
+
+  console.log(
+    "Proposal account successfully closed"
+  );
+
+  // --------------------------------------------------
+  // REMOVER BALANCE AFTER
+  // --------------------------------------------------
+
+  const removerBalanceAfter =
+    await provider.connection.getBalance(
+      initializer.publicKey
+    );
+
+  console.log(
+    "Remover balance after:",
+    removerBalanceAfter
+  );
+
+  // --------------------------------------------------
+  // VERIFY LAMPORTS WERE RETURNED
+  // --------------------------------------------------
+  //
+  // The remover also pays the transaction fee.
+  // Therefore we should not expect:
+  //
+  // removerBalanceAfter - removerBalanceBefore
+  //     === proposalLamports
+  //
+  // Instead, the remover's balance should still
+  // increase because the proposal's rent lamports
+  // were returned.
+  //
+
+  assert.isAbove(
+    removerBalanceAfter,
+    removerBalanceBefore
+  );
+
+  console.log(
+    "Proposal lamports successfully returned to remover"
+  );
+});
+
+
 });
 
