@@ -69,6 +69,7 @@ pub mod multisig_wallet {
         ctx.accounts.proposal.recipient=recipient;
         ctx.accounts.proposal.amount=amount;
         ctx.accounts.proposal.approvals=Vec::new();
+        ctx.accounts.proposal.cancels=Vec::new();
         ctx.accounts.proposal.status=ProposalStatus::Pending;
         ctx.accounts.proposal.proposal_id=ctx.accounts.multisig.proposal_count;
 
@@ -96,6 +97,27 @@ pub mod multisig_wallet {
             ctx.accounts.proposal.status=ProposalStatus::Ready;
         }
         
+        Ok(())
+    }
+
+    pub fn cancel_proposal(ctx:Context<CancelProposal>)->Result<()>{
+        if !matches!(ctx.accounts.proposal.status,ProposalStatus::Pending){
+            return Err(MultisigError::ProposalNotPending.into());
+        }
+        if ctx.accounts.multisig.owners.contains(&ctx.accounts.canceller.key()){
+            if !ctx.accounts.proposal.cancels.contains(&ctx.accounts.canceller.key()){
+                ctx.accounts.proposal.cancels.push(ctx.accounts.canceller.key());
+            }
+            else{
+                return Err(MultisigError::DoubleCancellation.into());
+            }
+        }else{
+            return Err(MultisigError::CancellerNotOwner.into());
+        } 
+        
+        if ctx.accounts.proposal.cancels.len()>=ctx.accounts.multisig.threshold as usize{
+            ctx.accounts.proposal.status=ProposalStatus::Cancelled;
+        }
         Ok(())
     }
 
@@ -136,7 +158,7 @@ pub mod multisig_wallet {
     }
 
     pub fn remove_proposal(ctx:Context<RemoveProposal>)->Result<()>{
-        if !matches!(ctx.accounts.proposal.status,ProposalStatus::Executed){
+        if !matches!(ctx.accounts.proposal.status,ProposalStatus::Executed | ProposalStatus::Cancelled){
             return Err(MultisigError::ProposalNotExecuted.into());
         }
         if !ctx.accounts.multisig.owners.contains(&ctx.accounts.remover.key()){
@@ -250,6 +272,23 @@ pub struct ApproveProposal<'info>{
 }
 
 #[derive(Accounts)]
+pub struct CancelProposal<'info>{
+    #[account(mut)]
+    pub canceller:Signer<'info>,
+
+    #[account()]
+    pub multisig:Account<'info,Multisig>,
+
+    #[account(
+        mut,
+        seeds=[b"proposal",multisig.key().as_ref(),proposal.proposal_id.to_le_bytes().as_ref()],
+        bump,
+        constraint=proposal.wallet==multisig.key() @MultisigError::InvalidProposalWallet
+    )]
+    pub proposal:Account<'info,Proposal>,
+}
+
+#[derive(Accounts)]
 pub struct ExecuteProposal<'info>{
     #[account(mut)]
     pub executor:Signer<'info>,
@@ -332,6 +371,8 @@ pub struct Proposal{
     pub amount:u64,
     #[max_len(10)]
     pub approvals:Vec<Pubkey>,
+    #[max_len(10)]
+    pub cancels:Vec<Pubkey>,
     pub status:ProposalStatus
 }
 
@@ -339,7 +380,8 @@ pub struct Proposal{
 pub enum ProposalStatus{
     Pending,
     Ready,
-    Executed
+    Executed,
+    Cancelled
 }
 
 #[error_code]
@@ -374,4 +416,8 @@ pub enum MultisigError{
     ProposalNotExecuted,
     #[msg("The remover is not an owner of the multisig")]
     RemoverNotOwner,
+    #[msg("The canceller is not an owner of the multisig")]
+    CancellerNotOwner,
+    #[msg("The canceller has already cancelled this proposal")]
+    DoubleCancellation,
 }
