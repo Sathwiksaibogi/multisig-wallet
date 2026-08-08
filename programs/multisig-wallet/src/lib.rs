@@ -135,6 +135,16 @@ pub mod multisig_wallet {
         Ok(())
     }
 
+    pub fn remove_proposal(ctx:Context<RemoveProposal>)->Result<()>{
+        if !matches!(ctx.accounts.proposal.status,ProposalStatus::Executed){
+            return Err(MultisigError::ProposalNotExecuted.into());
+        }
+        if !ctx.accounts.multisig.owners.contains(&ctx.accounts.remover.key()){
+            return Err(MultisigError::RemoverNotOwner.into());
+        }
+        Ok(())
+    }
+
     
 }
 
@@ -280,6 +290,27 @@ pub struct ExecuteProposal<'info>{
     pub system_program:Program<'info,System>
 }
 
+#[derive(Accounts)]
+pub struct RemoveProposal<'info>{
+    #[account(mut)]
+    pub remover:Signer<'info>,
+
+    #[account(
+        seeds=[b"multisig",multisig.initializer.key().as_ref(),multisig.wallet_id.to_le_bytes().as_ref()],
+        bump
+    )]
+    pub multisig:Account<'info,Multisig>,
+
+    #[account(
+        mut,
+        close=remover,
+        seeds=[b"proposal",multisig.key().as_ref(),proposal.proposal_id.to_le_bytes().as_ref()],
+        bump,
+        constraint=proposal.wallet==multisig.key() @MultisigError::InvalidProposalWallet
+    )]
+   pub proposal:Account<'info,Proposal>,
+}
+
 #[account]
 #[derive(InitSpace)]
 pub struct Multisig {
@@ -339,4 +370,8 @@ pub enum MultisigError{
     InvalidAmount,
     #[msg("The vault does not have enough SOL to execute this proposal")]
     InsufficientVaultFunds,
+    #[msg("The proposal is not executed yet")]
+    ProposalNotExecuted,
+    #[msg("The remover is not an owner of the multisig")]
+    RemoverNotOwner,
 }
