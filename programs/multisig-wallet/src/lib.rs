@@ -85,6 +85,9 @@ pub mod multisig_wallet {
         }
         if ctx.accounts.multisig.owners.contains(&ctx.accounts.approver.key()){
             if !ctx.accounts.proposal.approvals.contains(&ctx.accounts.approver.key()){
+                if ctx.accounts.proposal.cancels.contains(&ctx.accounts.approver.key()){
+                    return Err(MultisigError::AlreadyVoted.into());
+                }
                 ctx.accounts.proposal.approvals.push(ctx.accounts.approver.key());
             }
             else{
@@ -106,6 +109,9 @@ pub mod multisig_wallet {
         }
         if ctx.accounts.multisig.owners.contains(&ctx.accounts.canceller.key()){
             if !ctx.accounts.proposal.cancels.contains(&ctx.accounts.canceller.key()){
+                if ctx.accounts.proposal.approvals.contains(&ctx.accounts.canceller.key()){
+                    return Err(MultisigError::AlreadyVoted.into());
+                }
                 ctx.accounts.proposal.cancels.push(ctx.accounts.canceller.key());
             }
             else{
@@ -158,12 +164,13 @@ pub mod multisig_wallet {
     }
 
     pub fn remove_proposal(ctx:Context<RemoveProposal>)->Result<()>{
-        if !matches!(ctx.accounts.proposal.status,ProposalStatus::Executed | ProposalStatus::Cancelled){
-            return Err(MultisigError::ProposalNotExecuted.into());
-        }
         if !ctx.accounts.multisig.owners.contains(&ctx.accounts.remover.key()){
             return Err(MultisigError::RemoverNotOwner.into());
         }
+        if !matches!(ctx.accounts.proposal.status,ProposalStatus::Executed | ProposalStatus::Cancelled){
+            return Err(MultisigError::ProposalNotExecuted.into());
+        }
+        
         Ok(())
     }
 
@@ -205,7 +212,8 @@ pub struct InitializeVault<'info>{
         space=0,
         owner = system_program::ID,
         seeds=[b"vault",multisig.key().as_ref()],
-        bump
+        bump,
+        constraint=multisig.initializer==initializer.key() @MultisigError::InvalidInitializer
     )]
     pub vault:UncheckedAccount<'info>,
 
@@ -420,4 +428,8 @@ pub enum MultisigError{
     CancellerNotOwner,
     #[msg("The canceller has already cancelled this proposal")]
     DoubleCancellation,
+    #[msg("The canceller has already voted for this proposal")]
+    AlreadyVoted,
+    #[msg("The initializer is not valid for this multisig")]
+    InvalidInitializer,
 }
