@@ -12,6 +12,12 @@ import {
 
 import { assert } from "chai";
 
+import {
+  createMint,
+  getAccount,
+  getOrCreateAssociatedTokenAccount,
+} from "@solana/spl-token";
+
 describe("multisig-wallet", () => {
   // ==================================================
   // PROVIDER
@@ -63,6 +69,7 @@ describe("multisig-wallet", () => {
   let multisigPda: PublicKey;
   let vaultPda: PublicKey;
   let proposalPda: PublicKey;
+  let testMint: PublicKey;
 
   // ==================================================
   // HELPER: AIRDROP SOL
@@ -313,6 +320,75 @@ describe("multisig-wallet", () => {
       "Vault owner:",
       vaultAccount!.owner.toString()
     );
+  });
+
+   // ==================================================
+  // TEST 41
+  // SPL TOKEN MINT
+  // ==================================================
+  it("Creates a test SPL token mint", async () => {
+  testMint = await createMint(
+    provider.connection,
+    initializer.payer,
+    initializer.publicKey,
+    null,
+    6
+  );
+
+  console.log("Test token mint:", testMint.toBase58());
+
+  assert.isTrue(testMint instanceof PublicKey);
+  });
+  // --------------------------------------------------
+  // TEST-42
+  // TEST THE TOKEN VAULT
+  // --------------------------------------------------
+  it("Initializes the multisig token vault", async () => {
+  const [tokenVaultPda] = PublicKey.findProgramAddressSync(
+    [
+      Buffer.from("token_vault"),
+      multisigPda.toBuffer(),
+      testMint.toBuffer(),
+    ],
+    program.programId
+  );
+
+  const tx = await program.methods
+    .initializeTokenVault()
+    .accounts({
+      initializer: initializer.publicKey,
+      multisig: multisigPda,
+      mint: testMint,
+      tokenVault: tokenVaultPda,
+      tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
+      systemProgram: SystemProgram.programId,
+    })
+    .rpc();
+
+  console.log("Token vault:", tokenVaultPda.toBase58());
+  console.log("Initialize token vault transaction:", tx);
+
+  const tokenVault = await getAccount(
+    provider.connection,
+    tokenVaultPda
+  );
+
+  assert.equal(
+    tokenVault.mint.toBase58(),
+    testMint.toBase58()
+  );
+
+  assert.equal(
+    tokenVault.owner.toBase58(),
+    multisigPda.toBase58()
+  );
+
+  assert.equal(
+    tokenVault.amount.toString(),
+    "0"
+  );
+
+  console.log("Token vault initialized successfully");
   });
 
   // ==================================================
