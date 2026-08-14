@@ -81,7 +81,7 @@ pub mod multisig_wallet {
         Ok(())
     }
 
-    pub fn create_proposal(ctx:Context<CreateProposal>,recipient:Pubkey,amount:u64)->Result<()>{
+    pub fn create_proposal(ctx:Context<CreateProposal>,recipient:Pubkey,amount:u64,mint:Option<Pubkey>)->Result<()>{
         if !ctx.accounts.multisig.owners.contains(&ctx.accounts.creator.key()){
             return Err(MultisigError::CreatorNotOwner.into());
         }
@@ -92,6 +92,7 @@ pub mod multisig_wallet {
         ctx.accounts.proposal.creator=ctx.accounts.creator.key();
         ctx.accounts.proposal.recipient=recipient;
         ctx.accounts.proposal.amount=amount;
+        ctx.accounts.proposal.mint=mint;
         ctx.accounts.proposal.approvals=Vec::new();
         ctx.accounts.proposal.cancels=Vec::new();
         ctx.accounts.proposal.status=ProposalStatus::Pending;
@@ -459,6 +460,7 @@ pub struct Proposal{
     pub creator:Pubkey,
     pub recipient:Pubkey,
     pub amount:u64,
+    pub mint:Option<Pubkey>,
     #[max_len(10)]
     pub approvals:Vec<Pubkey>,
     #[max_len(10)]
