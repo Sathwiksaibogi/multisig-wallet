@@ -62,6 +62,25 @@ pub mod multisig_wallet {
         Ok(())
     }
 
+    pub fn deposit_token(ctx:Context<DepositToken>,amount:u64)->Result<()>{
+        if amount==0{
+            return Err(MultisigError::InvalidAmount.into());
+        }
+        let token_transfer_instruction=anchor_spl::token::Transfer{
+            from:ctx.accounts.depositor_token_account.to_account_info(),
+            to:ctx.accounts.token_vault.to_account_info(),
+            authority:ctx.accounts.depositor.to_account_info(),
+        };
+        anchor_spl::token::transfer(
+            CpiContext::new(
+                ctx.accounts.token_program.to_account_info(),
+                token_transfer_instruction
+            ),
+            amount,
+        )?;
+        Ok(())
+    }
+
     pub fn create_proposal(ctx:Context<CreateProposal>,recipient:Pubkey,amount:u64)->Result<()>{
         if !ctx.accounts.multisig.owners.contains(&ctx.accounts.creator.key()){
             return Err(MultisigError::CreatorNotOwner.into());
@@ -277,6 +296,35 @@ pub struct Deposit<'info>{
 }
 
 #[derive(Accounts)]
+pub struct DepositToken<'info>{
+    #[account(mut)]
+    pub depositor:Signer<'info>,
+
+    #[account()]
+    pub multisig:Account<'info,Multisig>,
+
+    #[account()]
+    pub mint:Account<'info,Mint>,
+
+    #[account(
+        mut,
+        seeds=[b"token_vault",multisig.key().as_ref(),mint.key().as_ref()],
+        bump,
+        constraint=token_vault.mint==mint.key() @MultisigError::InvalidMint
+    )]
+    pub token_vault:Account<'info,TokenAccount>,
+
+    #[account(
+        mut,
+        constraint=depositor_token_account.owner==depositor.key() @MultisigError::InvalidDepositor,
+        constraint=depositor_token_account.mint==mint.key() @MultisigError::InvalidMint
+    )]
+    pub depositor_token_account:Account<'info,TokenAccount>,
+
+    pub token_program:Program<'info,Token>,
+}
+
+#[derive(Accounts)]
 pub struct CreateProposal<'info>{
     #[account(mut)]
     pub creator:Signer<'info>,
@@ -466,4 +514,8 @@ pub enum MultisigError{
     AlreadyVoted,
     #[msg("The initializer is not valid for this multisig")]
     InvalidInitializer,
+    #[msg("The depositor is not valid for this token deposit")]
+    InvalidDepositor,
+    #[msg("The mint does not match the expected token vault mint")]
+    InvalidMint,
 }
