@@ -1,5 +1,6 @@
 use anchor_lang::system_program;
 use anchor_lang::prelude::*;
+use anchor_spl::token::{self, Mint, Token, TokenAccount};
 
 
 declare_id!("6kAdP7S1poZufGSxJ63LHr2KuLNjgmwNomjhu7WgAv8B");
@@ -36,6 +37,10 @@ pub mod multisig_wallet {
     }
 
     pub fn initialize_vault(_ctx:Context<InitializeVault>)->Result<()>{
+        Ok(())
+    }
+
+    pub fn initialize_token_vault(_ctx:Context<InitializeTokenVault>)->Result<()>{
         Ok(())
     }
 
@@ -219,6 +224,35 @@ pub struct InitializeVault<'info>{
 
     #[account()]
     pub system_program:Program<'info,System>,
+}
+
+#[derive(Accounts)]
+pub struct InitializeTokenVault<'info>{
+    #[account(mut)]
+    pub initializer:Signer<'info>,
+    
+    #[account(
+        seeds=[b"multisig",initializer.key().as_ref()],
+        bump
+    )]
+    pub multisig:Account<'info,Multisig>,
+
+    pub mint:Account<'info,Mint>,
+
+    #[account(
+        init,
+        payer=initializer,
+        token::mint=mint,
+        token::authority=multisig,
+        seeds=[b"token_vault",multisig.key().as_ref(),mint.key().as_ref()],
+        bump
+    )]
+    pub token_vault:Account<'info,TokenAccount>,
+
+    pub token_program:Program<'info,Token>,
+
+    pub system_program:Program<'info,System>,
+
 }
 
 #[derive(Accounts)]
