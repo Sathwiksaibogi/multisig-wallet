@@ -207,19 +207,20 @@ pub mod multisig_wallet {
             &[ctx.bumps.multisig],
         ];
 
-        let token_transfer_instruction = anchor_spl::token::Transfer{
+        let token_transfer_instruction = anchor_spl::token::TransferChecked{
             from: ctx.accounts.token_vault.to_account_info(),
             to: ctx.accounts.recipient_token_account.to_account_info(),
             authority: ctx.accounts.multisig.to_account_info(),
         };
 
-        anchor_spl::token::transfer(
+        anchor_spl::token::transfer_checked(
             CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
                 token_transfer_instruction,
                 &[signer_seeds],
             ),
             ctx.accounts.proposal.amount,
+            ctx.accounts.mint.decimals,
         )?;
 
         ctx.accounts.proposal.status=ProposalStatus::Executed;
@@ -265,7 +266,10 @@ pub struct InitializeVault<'info>{
     #[account(mut)]
     pub initializer:Signer<'info>,
 
-    #[account()]
+    #[account(
+        seeds=[b"multisig",multisig.initializer.key().as_ref(),multisig.wallet_id.to_le_bytes().as_ref()],
+        bump
+    )]
     pub multisig:Account<'info,Multisig>,
 
     /// CHECK: The vault is a PDA derived from the multisig and is used only
@@ -288,7 +292,7 @@ pub struct InitializeVault<'info>{
 #[derive(Accounts)]
 pub struct InitializeTokenVault<'info>{
     #[account(mut)]
-    pub initializer:Signer<'info>,
+    pub payer:Signer<'info>,
     
     #[account(
         seeds=[b"multisig",multisig.initializer.key().as_ref(),multisig.wallet_id.to_le_bytes().as_ref()],
@@ -300,7 +304,7 @@ pub struct InitializeTokenVault<'info>{
 
     #[account(
         init,
-        payer=initializer,
+        payer=payer,
         token::mint=mint,
         token::authority=multisig,
         seeds=[b"token_vault",multisig.key().as_ref(),mint.key().as_ref()],
@@ -319,7 +323,10 @@ pub struct Deposit<'info>{
     #[account(mut)]
     pub depositor:Signer<'info>,
 
-    #[account()]
+    #[account(
+        seeds=[b"multisig",multisig.initializer.key().as_ref(),multisig.wallet_id.to_le_bytes().as_ref()],
+        bump
+    )]
     pub multisig:Account<'info,Multisig>,
 
     /// CHECK: The vault is a PDA derived from the multisig
@@ -327,7 +334,8 @@ pub struct Deposit<'info>{
     #[account(
         mut,
         seeds=[b"vault",multisig.key().as_ref()],
-        bump
+        bump,
+        constraint = vault.owner == system_program::ID
     )]
     pub vault:UncheckedAccount<'info>,
 
@@ -340,7 +348,10 @@ pub struct DepositToken<'info>{
     #[account(mut)]
     pub depositor:Signer<'info>,
 
-    #[account()]
+    #[account(
+        seeds=[b"multisig",multisig.initializer.key().as_ref(),multisig.wallet_id.to_le_bytes().as_ref()],
+        bump
+    )]
     pub multisig:Account<'info,Multisig>,
 
     #[account()]
@@ -350,7 +361,8 @@ pub struct DepositToken<'info>{
         mut,
         seeds=[b"token_vault",multisig.key().as_ref(),mint.key().as_ref()],
         bump,
-        constraint=token_vault.mint==mint.key() @MultisigError::InvalidMint
+        constraint=token_vault.mint==mint.key() @MultisigError::InvalidMint,
+        constraint = token_vault.owner == multisig.key() @MultisigError::InvalidOwner,
     )]
     pub token_vault:Account<'info,TokenAccount>,
 
@@ -393,7 +405,10 @@ pub struct ApproveProposal<'info>{
     #[account()]
     pub approver:Signer<'info>,
 
-    #[account()]
+    #[account(
+        seeds=[b"multisig",multisig.initializer.key().as_ref(),multisig.wallet_id.to_le_bytes().as_ref()],
+        bump
+    )]
     pub multisig:Account<'info,Multisig>,
 
     #[account(
@@ -410,7 +425,10 @@ pub struct CancelProposal<'info>{
     #[account(mut)]
     pub canceller:Signer<'info>,
 
-    #[account()]
+    #[account(
+        seeds=[b"multisig",multisig.initializer.key().as_ref(),multisig.wallet_id.to_le_bytes().as_ref()],
+        bump
+    )]
     pub multisig:Account<'info,Multisig>,
 
     #[account(
@@ -438,6 +456,7 @@ pub struct ExecuteProposal<'info>{
         seeds=[b"proposal",multisig.key().as_ref(),proposal.proposal_id.to_le_bytes().as_ref()],
         bump,
         constraint=proposal.wallet==multisig.key() @MultisigError::InvalidProposalWallet,
+        constraint=proposal.mint.is_none() @MultisigError::InvalidMint,
     )]
     pub proposal:Account<'info,Proposal>,
 
@@ -446,7 +465,8 @@ pub struct ExecuteProposal<'info>{
     #[account(
         mut,
         seeds=[b"vault",multisig.key().as_ref()],
-        bump
+        bump,
+        constraint = vault.owner == system_program::ID
     )]
     pub vault:UncheckedAccount<'info>,
 
@@ -474,25 +494,25 @@ pub struct ExecuteTokenProposal<'info>{
     )]
     pub multisig:Account<'info,Multisig>,
 
+    #[account()]
+    pub mint:Account<'info,Mint>,
+
     #[account(
         mut,
         seeds=[b"proposal",multisig.key().as_ref(),proposal.proposal_id.to_le_bytes().as_ref()],
         bump,
         constraint=proposal.wallet==multisig.key() @MultisigError::InvalidProposalWallet,
+        constraint=proposal.mint==Some(mint.key()) @MultisigError::InvalidMint
     )]
     pub proposal:Account<'info,Proposal>,
 
-    #[account(
-        constraint=proposal.mint==Some(mint.key()) @MultisigError::InvalidMint
-        
-    )]
-    pub mint:Account<'info,Mint>,
 
     #[account(
         mut,
         seeds=[b"token_vault",multisig.key().as_ref(),mint.key().as_ref()],
         bump,
-        constraint=token_vault.mint==mint.key() @MultisigError::InvalidMint
+        constraint=token_vault.mint==mint.key() @MultisigError::InvalidMint,
+        constraint = token_vault.owner == multisig.key() @MultisigError::InvalidOwner,
     )]
     pub token_vault:Account<'info,TokenAccount>,
 
@@ -607,4 +627,6 @@ pub enum MultisigError{
     InvalidDepositor,
     #[msg("The mint does not match the expected token vault mint")]
     InvalidMint,
+    #[msg("The owner of the token vault does not match the multisig")]
+    InvalidOwner,
 }
