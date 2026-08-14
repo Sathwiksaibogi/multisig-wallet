@@ -1,6 +1,6 @@
 use anchor_lang::system_program;
 use anchor_lang::prelude::*;
-use anchor_spl::token::{self, Mint, Token, TokenAccount};
+use anchor_spl::token::{Mint, Token, TokenAccount};
 
 
 declare_id!("6kAdP7S1poZufGSxJ63LHr2KuLNjgmwNomjhu7WgAv8B");
@@ -188,6 +188,45 @@ pub mod multisig_wallet {
         Ok(())
     }
 
+    pub fn execute_token_proposal(ctx:Context<ExecuteTokenProposal>)->Result<()>{
+        if !matches!(ctx.accounts.proposal.status,ProposalStatus::Ready){
+            return Err(MultisigError::ProposalNotReady.into());
+        }
+
+        if ctx.accounts.token_vault.amount < ctx.accounts.proposal.amount{
+            return Err(MultisigError::InsufficientVaultFunds.into());
+        }
+    
+        let initializer = ctx.accounts.multisig.initializer.key();
+        let wallet_id = ctx.accounts.multisig.wallet_id;
+        let binding=wallet_id.to_le_bytes();
+        let signer_seeds=&[
+            b"multisig",
+            initializer.as_ref(),
+            binding.as_ref(),
+            &[ctx.bumps.multisig],
+        ];
+
+        let token_transfer_instruction = anchor_spl::token::Transfer{
+            from: ctx.accounts.token_vault.to_account_info(),
+            to: ctx.accounts.recipient_token_account.to_account_info(),
+            authority: ctx.accounts.multisig.to_account_info(),
+        };
+
+        anchor_spl::token::transfer(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                token_transfer_instruction,
+                &[signer_seeds],
+            ),
+            ctx.accounts.proposal.amount,
+        )?;
+
+        ctx.accounts.proposal.status=ProposalStatus::Executed;
+
+        Ok(())
+    }
+
     pub fn remove_proposal(ctx:Context<RemoveProposal>)->Result<()>{
         if !ctx.accounts.multisig.owners.contains(&ctx.accounts.remover.key()){
             return Err(MultisigError::RemoverNotOwner.into());
@@ -252,9 +291,9 @@ pub struct InitializeTokenVault<'info>{
     pub initializer:Signer<'info>,
     
     #[account(
-        seeds=[b"multisig",initializer.key().as_ref()],
+        seeds=[b"multisig",multisig.initializer.key().as_ref(),multisig.wallet_id.to_le_bytes().as_ref()],
         bump
-    )]
+        )]
     pub multisig:Account<'info,Multisig>,
 
     pub mint:Account<'info,Mint>,
@@ -330,7 +369,11 @@ pub struct CreateProposal<'info>{
     #[account(mut)]
     pub creator:Signer<'info>,
 
-    #[account(mut)]
+    #[account(
+        mut,
+        seeds=[b"multisig",multisig.initializer.key().as_ref(),multisig.wallet_id.to_le_bytes().as_ref()],
+        bump,
+    )]
     pub multisig:Account<'info,Multisig>,
 
     #[account(
@@ -418,6 +461,50 @@ pub struct ExecuteProposal<'info>{
 
     #[account()]
     pub system_program:Program<'info,System>
+}
+
+#[derive(Accounts)]
+pub struct ExecuteTokenProposal<'info>{
+    #[account(mut)]
+    pub executor:Signer<'info>,
+
+    #[account(
+        seeds=[b"multisig",multisig.initializer.key().as_ref(),multisig.wallet_id.to_le_bytes().as_ref()],
+        bump
+    )]
+    pub multisig:Account<'info,Multisig>,
+
+    #[account(
+        mut,
+        seeds=[b"proposal",multisig.key().as_ref(),proposal.proposal_id.to_le_bytes().as_ref()],
+        bump,
+        constraint=proposal.wallet==multisig.key() @MultisigError::InvalidProposalWallet,
+    )]
+    pub proposal:Account<'info,Proposal>,
+
+    #[account(
+        constraint=proposal.mint==Some(mint.key()) @MultisigError::InvalidMint
+        
+    )]
+    pub mint:Account<'info,Mint>,
+
+    #[account(
+        mut,
+        seeds=[b"token_vault",multisig.key().as_ref(),mint.key().as_ref()],
+        bump,
+        constraint=token_vault.mint==mint.key() @MultisigError::InvalidMint
+    )]
+    pub token_vault:Account<'info,TokenAccount>,
+
+    #[account(
+        mut,
+        constraint=recipient_token_account.owner==proposal.recipient @MultisigError::InvalidRecipient,
+        constraint=recipient_token_account.mint==mint.key() @MultisigError::InvalidMint
+    )]
+    pub recipient_token_account:Account<'info,TokenAccount>,
+
+    pub token_program:Program<'info,Token>,
+
 }
 
 #[derive(Accounts)]
