@@ -16,6 +16,7 @@ import {
   createMint,
   getAccount,
   getOrCreateAssociatedTokenAccount,
+  mintTo,
 } from "@solana/spl-token";
 
 describe("multisig-wallet", () => {
@@ -63,13 +64,21 @@ describe("multisig-wallet", () => {
   const threshold = 2;
 
   // ==================================================
-  // PDAs
-  // ==================================================
+// PDAs / TOKEN ACCOUNTS
+// ==================================================
 
-  let multisigPda: PublicKey;
-  let vaultPda: PublicKey;
-  let proposalPda: PublicKey;
-  let testMint: PublicKey;
+let multisigPda: PublicKey;
+let vaultPda: PublicKey;
+let proposalPda: PublicKey;
+
+let testMint: PublicKey;
+let secondMint: PublicKey;
+
+let tokenVaultPda: PublicKey;
+let secondTokenVaultPda: PublicKey;
+
+let depositorTokenAccount: PublicKey;
+let recipientTokenAccount: PublicKey;
 
   // ==================================================
   // HELPER: AIRDROP SOL
@@ -322,74 +331,7 @@ describe("multisig-wallet", () => {
     );
   });
 
-   // ==================================================
-  // TEST 41
-  // SPL TOKEN MINT
-  // ==================================================
-  it("Creates a test SPL token mint", async () => {
-  testMint = await createMint(
-    provider.connection,
-    initializer.payer,
-    initializer.publicKey,
-    null,
-    6
-  );
-
-  console.log("Test token mint:", testMint.toBase58());
-
-  assert.isTrue(testMint instanceof PublicKey);
-  });
-  // --------------------------------------------------
-  // TEST-42
-  // TEST THE TOKEN VAULT
-  // --------------------------------------------------
-  it("Initializes the multisig token vault", async () => {
-  const [tokenVaultPda] = PublicKey.findProgramAddressSync(
-    [
-      Buffer.from("token_vault"),
-      multisigPda.toBuffer(),
-      testMint.toBuffer(),
-    ],
-    program.programId
-  );
-
-  const tx = await program.methods
-    .initializeTokenVault()
-    .accounts({
-      initializer: initializer.publicKey,
-      multisig: multisigPda,
-      mint: testMint,
-      tokenVault: tokenVaultPda,
-      tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
-      systemProgram: SystemProgram.programId,
-    })
-    .rpc();
-
-  console.log("Token vault:", tokenVaultPda.toBase58());
-  console.log("Initialize token vault transaction:", tx);
-
-  const tokenVault = await getAccount(
-    provider.connection,
-    tokenVaultPda
-  );
-
-  assert.equal(
-    tokenVault.mint.toBase58(),
-    testMint.toBase58()
-  );
-
-  assert.equal(
-    tokenVault.owner.toBase58(),
-    multisigPda.toBase58()
-  );
-
-  assert.equal(
-    tokenVault.amount.toString(),
-    "0"
-  );
-
-  console.log("Token vault initialized successfully");
-  });
+  
 
   // ==================================================
   // TEST 4
@@ -591,7 +533,8 @@ describe("multisig-wallet", () => {
       await program.methods
         .createProposal(
           recipient.publicKey,
-          new anchor.BN(amount)
+          new anchor.BN(amount),
+          null
         )
         .accounts({
           creator:
@@ -1300,7 +1243,8 @@ it("Removes an executed proposal and refunds its lamports to the remover", async
       await program.methods
         .createProposal(
           recipient.publicKey,
-          new anchor.BN(amount)
+          new anchor.BN(amount),
+          null
         )
         .accounts({
           creator:
@@ -1880,7 +1824,8 @@ it("Allows mixed voting and reaches Ready when approval threshold is reached", a
   await program.methods
     .createProposal(
       recipient.publicKey,
-      new anchor.BN(amount)
+      new anchor.BN(amount),
+      null
     )
     .accounts({
       creator:
@@ -2068,7 +2013,8 @@ it("Rejects cancellation after proposal becomes Ready", async () => {
       recipient.publicKey,
       new anchor.BN(
         0.1 * LAMPORTS_PER_SOL
-      )
+      ),
+      null
     )
     .accounts({
       creator:
@@ -2219,7 +2165,8 @@ it("Rejects approval after proposal becomes Cancelled", async () => {
       recipient.publicKey,
       new anchor.BN(
         0.1 * LAMPORTS_PER_SOL
-      )
+      ),
+      null
     )
     .accounts({
       creator:
@@ -2374,7 +2321,8 @@ it("Rejects execution when the vault has insufficient funds", async () => {
   await program.methods
     .createProposal(
       recipient.publicKey,
-      new anchor.BN(hugeAmount)
+      new anchor.BN(hugeAmount),
+      null
     )
     .accounts({
       creator:
@@ -2540,7 +2488,8 @@ it("Rejects execution with an invalid recipient", async () => {
   await program.methods
     .createProposal(
       recipient.publicKey,
-      new anchor.BN(amount)
+      new anchor.BN(amount),
+      null
     )
     .accounts({
       creator:
@@ -2779,7 +2728,8 @@ it("Allows a non-owner executor to execute a Ready proposal", async () => {
   await program.methods
     .createProposal(
       recipient.publicKey,
-      new anchor.BN(amount)
+      new anchor.BN(amount),
+      null
     )
     .accounts({
       creator:
@@ -3027,7 +2977,8 @@ it("Rejects using a proposal with the wrong multisig wallet", async () => {
       recipient.publicKey,
       new anchor.BN(
         0.1 * LAMPORTS_PER_SOL
-      )
+      ),
+      null
     )
     .accounts({
       creator:
@@ -3489,7 +3440,8 @@ it("Rejects proposal creation by a non-owner", async () => {
         recipient.publicKey,
         new anchor.BN(
           0.1 * LAMPORTS_PER_SOL
-        )
+        ),
+        null
       )
       .accounts({
         creator:
@@ -3558,7 +3510,8 @@ it("Rejects a proposal with zero amount", async () => {
     await program.methods
       .createProposal(
         recipient.publicKey,
-        new anchor.BN(0)
+        new anchor.BN(0),
+        null
       )
       .accounts({
         creator:
@@ -3627,7 +3580,8 @@ it("Rejects cancellation by an owner who already approved", async () => {
       recipient.publicKey,
       new anchor.BN(
         0.1 * LAMPORTS_PER_SOL
-      )
+      ),
+      null
     )
     .accounts({
       creator:
@@ -3724,7 +3678,8 @@ it("Rejects approval by an owner who already cancelled", async () => {
       recipient.publicKey,
       new anchor.BN(
         0.1 * LAMPORTS_PER_SOL
-      )
+      ),
+      null
     )
     .accounts({
       creator:
@@ -3821,7 +3776,8 @@ it("Rejects execution of a Pending proposal", async () => {
       recipient.publicKey,
       new anchor.BN(
         0.1 * LAMPORTS_PER_SOL
-      )
+      ),
+      null
     )
     .accounts({
       creator:
@@ -3915,7 +3871,8 @@ it("Rejects removal of a Pending proposal", async () => {
       recipient.publicKey,
       new anchor.BN(
         0.1 * LAMPORTS_PER_SOL
-      )
+      ),
+      null
     )
     .accounts({
       creator:
@@ -4003,7 +3960,8 @@ it("Rejects removal of a terminal proposal by a non-owner", async () => {
       recipient.publicKey,
       new anchor.BN(
         0.1 * LAMPORTS_PER_SOL
-      )
+      ),
+      null
     )
     .accounts({
       creator:
@@ -4115,9 +4073,1733 @@ it("Rejects removal of a terminal proposal by a non-owner", async () => {
     );
   }
 });
+ // ==================================================
+  // TEST 41
+  // SPL TOKEN MINT
+  // ==================================================
+  it("Creates a test SPL token mint", async () => {
+  testMint = await createMint(
+    provider.connection,
+    initializer.payer,
+    initializer.publicKey,
+    null,
+    6
+  );
 
+  console.log("Test token mint:", testMint.toBase58());
 
+  assert.isTrue(testMint instanceof PublicKey);
+  });
+ // ==================================================
+// TEST 42
+// INITIALIZE TOKEN VAULT
+// ==================================================
 
+it("Initializes the multisig token vault", async () => {
+  const [tokenVaultPda] =
+    PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("token_vault"),
+        multisigPda.toBuffer(),
+        testMint.toBuffer(),
+      ],
+      program.programId
+    );
+
+  const tx =
+    await program.methods
+      .initializeTokenVault()
+      .accounts({
+        payer: initializer.publicKey,
+        multisig: multisigPda,
+        mint: testMint,
+        tokenVault: tokenVaultPda,
+        tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+
+  console.log(
+    "Token vault:",
+    tokenVaultPda.toBase58()
+  );
+
+  console.log(
+    "Initialize token vault transaction:",
+    tx
+  );
+
+  const tokenVault =
+    await getAccount(
+      provider.connection,
+      tokenVaultPda
+    );
+
+  assert.equal(
+    tokenVault.mint.toBase58(),
+    testMint.toBase58()
+  );
+
+  assert.equal(
+    tokenVault.owner.toBase58(),
+    multisigPda.toBase58()
+  );
+
+  assert.equal(
+    tokenVault.amount.toString(),
+    "0"
+  );
+
+  console.log(
+    "Token vault initialized successfully"
+  );
+});
+// ==================================================
+// TEST 43
+// PERMISSIONLESS TOKEN VAULT INITIALIZATION
+// ==================================================
+
+it("Allows a non-owner payer to initialize a token vault", async () => {
+  // --------------------------------------------------
+  // CREATE SECOND TEST MINT
+  // --------------------------------------------------
+
+  secondMint = await createMint(
+    provider.connection,
+    initializer.payer,
+    initializer.publicKey,
+    null,
+    6
+  );
+
+  console.log(
+    "Second test mint:",
+    secondMint.toBase58()
+  );
+
+  // --------------------------------------------------
+  // DERIVE SECOND TOKEN VAULT
+  // --------------------------------------------------
+
+  [
+    secondTokenVaultPda
+  ] =
+    PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("token_vault"),
+        multisigPda.toBuffer(),
+        secondMint.toBuffer(),
+      ],
+      program.programId
+    );
+
+  // --------------------------------------------------
+  // EXECUTOR IS NOT AN OWNER
+  // AND NOT THE MULTISIG INITIALIZER
+  // --------------------------------------------------
+
+  await program.methods
+    .initializeTokenVault()
+    .accounts({
+      payer: executor.publicKey,
+      multisig: multisigPda,
+      mint: secondMint,
+      tokenVault: secondTokenVaultPda,
+      tokenProgram:
+        anchor.utils.token.TOKEN_PROGRAM_ID,
+      systemProgram:
+        SystemProgram.programId,
+    })
+    .signers([executor])
+    .rpc();
+
+  // --------------------------------------------------
+  // VERIFY
+  // --------------------------------------------------
+
+  const tokenVault =
+    await getAccount(
+      provider.connection,
+      secondTokenVaultPda
+    );
+
+  assert.equal(
+    tokenVault.mint.toBase58(),
+    secondMint.toBase58()
+  );
+
+  assert.equal(
+    tokenVault.owner.toBase58(),
+    multisigPda.toBase58()
+  );
+
+  assert.equal(
+    tokenVault.amount.toString(),
+    "0"
+  );
+
+  console.log(
+    "Permissionless token vault initialization succeeded"
+  );
+});
+// ==================================================
+// TEST 44
+// REJECT DUPLICATE TOKEN VAULT INITIALIZATION
+// ==================================================
+
+it("Rejects initializing the same token vault twice", async () => {
+  const [existingTokenVaultPda] =
+    PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("token_vault"),
+        multisigPda.toBuffer(),
+        testMint.toBuffer(),
+      ],
+      program.programId
+    );
+
+  try {
+    await program.methods
+      .initializeTokenVault()
+      .accounts({
+        payer: executor.publicKey,
+        multisig: multisigPda,
+        mint: testMint,
+        tokenVault: existingTokenVaultPda,
+        tokenProgram:
+          anchor.utils.token.TOKEN_PROGRAM_ID,
+        systemProgram:
+          SystemProgram.programId,
+      })
+      .signers([executor])
+      .rpc();
+
+    assert.fail(
+      "Duplicate token vault initialization should fail"
+    );
+
+  } catch (error: any) {
+    console.log(
+      "Duplicate token vault correctly rejected"
+    );
+
+    assert.isTrue(
+      !!error
+    );
+  }
+});
+// ==================================================
+// TEST 45
+// CREATE TOKEN ACCOUNTS AND FUND DEPOSITOR
+// ==================================================
+
+it("Creates token accounts and funds the depositor", async () => {
+  // --------------------------------------------------
+  // CREATE INITIALIZER TOKEN ACCOUNT
+  // --------------------------------------------------
+
+  const sourceAccount =
+    await getOrCreateAssociatedTokenAccount(
+      provider.connection,
+      initializer.payer,
+      testMint,
+      initializer.publicKey
+    );
+
+  depositorTokenAccount =
+    sourceAccount.address;
+
+  // --------------------------------------------------
+  // CREATE RECIPIENT TOKEN ACCOUNT
+  // --------------------------------------------------
+
+  const destinationAccount =
+    await getOrCreateAssociatedTokenAccount(
+      provider.connection,
+      initializer.payer,
+      testMint,
+      recipient.publicKey
+    );
+
+  recipientTokenAccount =
+    destinationAccount.address;
+
+  // --------------------------------------------------
+  // MINT 100 TOKENS
+  //
+  // Mint has 6 decimals.
+  // 100 tokens = 100_000_000 base units.
+  // --------------------------------------------------
+
+  const tokenAmount =
+    100_000_000n;
+
+  await mintTo(
+  provider.connection,
+  initializer.payer,
+  testMint,
+  depositorTokenAccount,
+  initializer.publicKey,
+  100_000_000
+);
+
+  const depositorAccount =
+    await getAccount(
+      provider.connection,
+      depositorTokenAccount
+    );
+
+  assert.equal(
+    depositorAccount.amount.toString(),
+    tokenAmount.toString()
+  );
+
+  console.log(
+    "Depositor token balance:",
+    depositorAccount.amount.toString()
+  );
+
+  console.log(
+    "Recipient token account:",
+    recipientTokenAccount.toBase58()
+  );
+});
+
+// ==================================================
+// TEST 46
+// DEPOSIT SPL TOKENS
+// ==================================================
+
+it("Deposits SPL tokens into the multisig token vault", async () => {
+  [
+    tokenVaultPda
+  ] =
+    PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("token_vault"),
+        multisigPda.toBuffer(),
+        testMint.toBuffer(),
+      ],
+      program.programId
+    );
+
+  const amount =
+    new anchor.BN(10_000_000);
+
+  const before =
+    await getAccount(
+      provider.connection,
+      tokenVaultPda
+    );
+
+  const beforeAmount =
+    before.amount;
+
+  await program.methods
+    .depositToken(amount)
+    .accounts({
+      depositor:
+        initializer.publicKey,
+
+      multisig:
+        multisigPda,
+
+      mint:
+        testMint,
+
+      tokenVault:
+        tokenVaultPda,
+
+      depositorTokenAccount:
+        depositorTokenAccount,
+
+      tokenProgram:
+        anchor.utils.token.TOKEN_PROGRAM_ID,
+    })
+    .rpc();
+
+  const after =
+    await getAccount(
+      provider.connection,
+      tokenVaultPda
+    );
+
+  const difference =
+    after.amount - beforeAmount;
+
+  assert.equal(
+    difference.toString(),
+    amount.toString()
+  );
+
+  assert.equal(
+    after.owner.toBase58(),
+    multisigPda.toBase58()
+  );
+
+  assert.equal(
+    after.mint.toBase58(),
+    testMint.toBase58()
+  );
+
+  console.log(
+    "Token vault balance after deposit:",
+    after.amount.toString()
+  );
+});
+// ==================================================
+// TEST 47
+// REJECT ZERO TOKEN DEPOSIT
+// ==================================================
+
+it("Rejects a zero SPL token deposit", async () => {
+  try {
+    await program.methods
+      .depositToken(
+        new anchor.BN(0)
+      )
+      .accounts({
+        depositor:
+          initializer.publicKey,
+
+        multisig:
+          multisigPda,
+
+        mint:
+          testMint,
+
+        tokenVault:
+          tokenVaultPda,
+
+        depositorTokenAccount:
+          depositorTokenAccount,
+
+        tokenProgram:
+          anchor.utils.token.TOKEN_PROGRAM_ID,
+      })
+      .rpc();
+
+    assert.fail(
+      "Zero token deposit should fail"
+    );
+
+  } catch (error: any) {
+    const errorCode =
+      error?.error?.errorCode?.code;
+
+    console.log(
+      "Zero token deposit rejected:",
+      errorCode
+    );
+
+    assert.equal(
+      errorCode,
+      "InvalidAmount"
+    );
+  }
+});
+// ==================================================
+// TEST 48
+// REJECT INVALID DEPOSITOR TOKEN ACCOUNT
+// ==================================================
+
+it("Rejects a token deposit using an account not owned by the depositor", async () => {
+  try {
+    await program.methods
+      .depositToken(
+        new anchor.BN(1_000_000)
+      )
+      .accounts({
+        depositor:
+          owner2.publicKey,
+
+        multisig:
+          multisigPda,
+
+        mint:
+          testMint,
+
+        tokenVault:
+          tokenVaultPda,
+
+        // This account belongs to initializer,
+        // not owner2.
+        depositorTokenAccount:
+          depositorTokenAccount,
+
+        tokenProgram:
+          anchor.utils.token.TOKEN_PROGRAM_ID,
+      })
+      .signers([owner2])
+      .rpc();
+
+    assert.fail(
+      "Invalid depositor token account should fail"
+    );
+
+  } catch (error: any) {
+    const errorCode =
+      error?.error?.errorCode?.code;
+
+    console.log(
+      "Invalid depositor rejected:",
+      errorCode
+    );
+
+    assert.equal(
+      errorCode,
+      "InvalidDepositor"
+    );
+  }
+});
+// ==================================================
+// TEST 49
+// REJECT WRONG MINT DURING TOKEN DEPOSIT
+// ==================================================
+
+it("Rejects a token deposit when the depositor token account uses the wrong mint", async () => {
+  try {
+    await program.methods
+      .depositToken(
+        new anchor.BN(1_000_000)
+      )
+      .accounts({
+        depositor:
+          initializer.publicKey,
+
+        multisig:
+          multisigPda,
+
+        mint:
+          secondMint,
+
+        tokenVault:
+          secondTokenVaultPda,
+
+        // This token account belongs to testMint,
+        // not secondMint.
+        depositorTokenAccount:
+          depositorTokenAccount,
+
+        tokenProgram:
+          anchor.utils.token.TOKEN_PROGRAM_ID,
+      })
+      .rpc();
+
+    assert.fail(
+      "Wrong mint deposit should fail"
+    );
+
+  } catch (error: any) {
+    const errorCode =
+      error?.error?.errorCode?.code;
+
+    console.log(
+      "Wrong mint deposit rejected:",
+      errorCode
+    );
+
+    assert.equal(
+      errorCode,
+      "InvalidMint"
+    );
+  }
+});
+// ==================================================
+// TEST 50
+// CREATE TOKEN PROPOSAL
+// ==================================================
+
+let tokenProposalPda: PublicKey;
+
+it("Creates an SPL token proposal", async () => {
+  const multisig =
+    await program.account.multisig.fetch(
+      multisigPda
+    );
+
+  const proposalId =
+    multisig.proposalCount;
+
+  [
+    tokenProposalPda
+  ] =
+    PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("proposal"),
+        multisigPda.toBuffer(),
+        proposalId.toArrayLike(
+          Buffer,
+          "le",
+          8
+        ),
+      ],
+      program.programId
+    );
+
+  const amount =
+    new anchor.BN(2_000_000);
+
+  await program.methods
+    .createProposal(
+      recipient.publicKey,
+      amount,
+      testMint
+    )
+    .accounts({
+      creator:
+        initializer.publicKey,
+
+      multisig:
+        multisigPda,
+
+      proposal:
+        tokenProposalPda,
+
+      systemProgram:
+        SystemProgram.programId,
+    })
+    .rpc();
+
+  const proposal =
+    await program.account.proposal.fetch(
+      tokenProposalPda
+    );
+
+  assert.equal(
+    proposal.wallet.toBase58(),
+    multisigPda.toBase58()
+  );
+
+  assert.equal(
+    proposal.proposalId.toNumber(),
+    proposalId.toNumber()
+  );
+
+  assert.equal(
+    proposal.recipient.toBase58(),
+    recipient.publicKey.toBase58()
+  );
+
+  assert.equal(
+    proposal.amount.toString(),
+    amount.toString()
+  );
+
+  assert.isNotNull(
+    proposal.mint
+  );
+
+  assert.equal(
+    proposal.mint!.toBase58(),
+    testMint.toBase58()
+  );
+
+  assert.equal(
+    proposal.approvals.length,
+    0
+  );
+
+  assert.equal(
+    proposal.cancels.length,
+    0
+  );
+
+  assert.isTrue(
+    "pending" in proposal.status
+  );
+
+  console.log(
+    "Token proposal created successfully"
+  );
+});
+// ==================================================
+// TEST 51
+// APPROVE TOKEN PROPOSAL
+// ==================================================
+
+it("Approves the SPL token proposal and reaches Ready", async () => {
+  await program.methods
+    .approveProposal()
+    .accounts({
+      approver:
+        initializer.publicKey,
+
+      multisig:
+        multisigPda,
+
+      proposal:
+        tokenProposalPda,
+    })
+    .rpc();
+
+  await program.methods
+    .approveProposal()
+    .accounts({
+      approver:
+        owner2.publicKey,
+
+      multisig:
+        multisigPda,
+
+      proposal:
+        tokenProposalPda,
+    })
+    .signers([owner2])
+    .rpc();
+
+  const proposal =
+    await program.account.proposal.fetch(
+      tokenProposalPda
+    );
+
+  assert.equal(
+    proposal.approvals.length,
+    2
+  );
+
+  assert.isTrue(
+    "ready" in proposal.status
+  );
+
+  console.log(
+    "Token proposal reached Ready"
+  );
+});
+// ==================================================
+// TEST 52
+// EXECUTE TOKEN PROPOSAL
+// ==================================================
+
+it("Executes an approved SPL token proposal", async () => {
+  const tokenVaultBefore =
+    await getAccount(
+      provider.connection,
+      tokenVaultPda
+    );
+
+  const recipientBefore =
+    await getAccount(
+      provider.connection,
+      recipientTokenAccount
+    );
+
+  const amount =
+    BigInt(2_000_000);
+
+  await program.methods
+    .executeTokenProposal()
+    .accounts({
+      executor:
+        executor.publicKey,
+
+      multisig:
+        multisigPda,
+
+      mint:
+        testMint,
+
+      proposal:
+        tokenProposalPda,
+
+      tokenVault:
+        tokenVaultPda,
+
+      recipientTokenAccount:
+        recipientTokenAccount,
+
+      tokenProgram:
+        anchor.utils.token.TOKEN_PROGRAM_ID,
+    })
+    .signers([executor])
+    .rpc();
+
+  const tokenVaultAfter =
+    await getAccount(
+      provider.connection,
+      tokenVaultPda
+    );
+
+  const recipientAfter =
+    await getAccount(
+      provider.connection,
+      recipientTokenAccount
+    );
+
+  assert.equal(
+    (
+      tokenVaultBefore.amount -
+      tokenVaultAfter.amount
+    ).toString(),
+    amount.toString()
+  );
+
+  assert.equal(
+    (
+      recipientAfter.amount -
+      recipientBefore.amount
+    ).toString(),
+    amount.toString()
+  );
+
+  const proposal =
+    await program.account.proposal.fetch(
+      tokenProposalPda
+    );
+
+  assert.isTrue(
+    "executed" in proposal.status
+  );
+
+  console.log(
+    "SPL token proposal executed successfully"
+  );
+});
+// ==================================================
+// TEST 53
+// REJECT SECOND TOKEN EXECUTION
+// ==================================================
+
+it("Rejects executing an already executed token proposal", async () => {
+  try {
+    await program.methods
+      .executeTokenProposal()
+      .accounts({
+        executor:
+          executor.publicKey,
+
+        multisig:
+          multisigPda,
+
+        mint:
+          testMint,
+
+        proposal:
+          tokenProposalPda,
+
+        tokenVault:
+          tokenVaultPda,
+
+        recipientTokenAccount:
+          recipientTokenAccount,
+
+        tokenProgram:
+          anchor.utils.token.TOKEN_PROGRAM_ID,
+      })
+      .signers([executor])
+      .rpc();
+
+    assert.fail(
+      "Second token execution should fail"
+    );
+
+  } catch (error: any) {
+    const errorCode =
+      error?.error?.errorCode?.code;
+
+    console.log(
+      "Second token execution rejected:",
+      errorCode
+    );
+
+    assert.equal(
+      errorCode,
+      "ProposalNotReady"
+    );
+  }
+});
+// ==================================================
+// TEST 54
+// INSUFFICIENT TOKEN VAULT FUNDS
+// ==================================================
+
+it("Rejects token execution when the token vault has insufficient funds", async () => {
+  const multisig =
+    await program.account.multisig.fetch(
+      multisigPda
+    );
+
+  const proposalId =
+    multisig.proposalCount;
+
+  const [insufficientTokenProposalPda] =
+    PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("proposal"),
+        multisigPda.toBuffer(),
+        proposalId.toArrayLike(
+          Buffer,
+          "le",
+          8
+        ),
+      ],
+      program.programId
+    );
+
+  // Vault has far less than this.
+  const hugeAmount =
+    new anchor.BN(500_000_000);
+
+  await program.methods
+    .createProposal(
+      recipient.publicKey,
+      hugeAmount,
+      testMint
+    )
+    .accounts({
+      creator:
+        initializer.publicKey,
+
+      multisig:
+        multisigPda,
+
+      proposal:
+        insufficientTokenProposalPda,
+
+      systemProgram:
+        SystemProgram.programId,
+    })
+    .rpc();
+
+  await program.methods
+    .approveProposal()
+    .accounts({
+      approver:
+        initializer.publicKey,
+
+      multisig:
+        multisigPda,
+
+      proposal:
+        insufficientTokenProposalPda,
+    })
+    .rpc();
+
+  await program.methods
+    .approveProposal()
+    .accounts({
+      approver:
+        owner2.publicKey,
+
+      multisig:
+        multisigPda,
+
+      proposal:
+        insufficientTokenProposalPda,
+    })
+    .signers([owner2])
+    .rpc();
+
+  try {
+    await program.methods
+      .executeTokenProposal()
+      .accounts({
+        executor:
+          executor.publicKey,
+
+        multisig:
+          multisigPda,
+
+        mint:
+          testMint,
+
+        proposal:
+          insufficientTokenProposalPda,
+
+        tokenVault:
+          tokenVaultPda,
+
+        recipientTokenAccount:
+          recipientTokenAccount,
+
+        tokenProgram:
+          anchor.utils.token.TOKEN_PROGRAM_ID,
+      })
+      .signers([executor])
+      .rpc();
+
+    assert.fail(
+      "Insufficient token funds should fail"
+    );
+
+  } catch (error: any) {
+    const errorCode =
+      error?.error?.errorCode?.code;
+
+    console.log(
+      "Insufficient token funds rejected:",
+      errorCode
+    );
+
+    assert.equal(
+      errorCode,
+      "InsufficientVaultFunds"
+    );
+  }
+});
+// ==================================================
+// TEST 55
+// INVALID TOKEN RECIPIENT
+// ==================================================
+
+it("Rejects token execution with an incorrect recipient token account", async () => {
+  const multisig =
+    await program.account.multisig.fetch(
+      multisigPda
+    );
+
+  const proposalId =
+    multisig.proposalCount;
+
+  const [invalidRecipientTokenProposalPda] =
+    PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("proposal"),
+        multisigPda.toBuffer(),
+        proposalId.toArrayLike(
+          Buffer,
+          "le",
+          8
+        ),
+      ],
+      program.programId
+    );
+
+  const amount =
+    new anchor.BN(1_000_000);
+
+  await program.methods
+    .createProposal(
+      recipient.publicKey,
+      amount,
+      testMint
+    )
+    .accounts({
+      creator:
+        initializer.publicKey,
+
+      multisig:
+        multisigPda,
+
+      proposal:
+        invalidRecipientTokenProposalPda,
+
+      systemProgram:
+        SystemProgram.programId,
+    })
+    .rpc();
+
+  await program.methods
+    .approveProposal()
+    .accounts({
+      approver:
+        initializer.publicKey,
+
+      multisig:
+        multisigPda,
+
+      proposal:
+        invalidRecipientTokenProposalPda,
+    })
+    .rpc();
+
+  await program.methods
+    .approveProposal()
+    .accounts({
+      approver:
+        owner2.publicKey,
+
+      multisig:
+        multisigPda,
+
+      proposal:
+        invalidRecipientTokenProposalPda,
+    })
+    .signers([owner2])
+    .rpc();
+
+  const wrongRecipient =
+    Keypair.generate();
+
+  const wrongRecipientAta =
+    await getOrCreateAssociatedTokenAccount(
+      provider.connection,
+      initializer.payer,
+      testMint,
+      wrongRecipient.publicKey
+    );
+
+  try {
+    await program.methods
+      .executeTokenProposal()
+      .accounts({
+        executor:
+          executor.publicKey,
+
+        multisig:
+          multisigPda,
+
+        mint:
+          testMint,
+
+        proposal:
+          invalidRecipientTokenProposalPda,
+
+        tokenVault:
+          tokenVaultPda,
+
+        recipientTokenAccount:
+          wrongRecipientAta.address,
+
+        tokenProgram:
+          anchor.utils.token.TOKEN_PROGRAM_ID,
+      })
+      .signers([executor])
+      .rpc();
+
+    assert.fail(
+      "Invalid token recipient should fail"
+    );
+
+  } catch (error: any) {
+    const errorCode =
+      error?.error?.errorCode?.code;
+
+    console.log(
+      "Invalid token recipient rejected:",
+      errorCode
+    );
+
+    assert.equal(
+      errorCode,
+      "InvalidRecipient"
+    );
+  }
+
+  // The failed transaction must leave proposal Ready.
+  const proposal =
+    await program.account.proposal.fetch(
+      invalidRecipientTokenProposalPda
+    );
+
+  assert.isTrue(
+    "ready" in proposal.status
+  );
+
+  // Execute correctly afterwards.
+  await program.methods
+    .executeTokenProposal()
+    .accounts({
+      executor:
+        executor.publicKey,
+
+      multisig:
+        multisigPda,
+
+      mint:
+        testMint,
+
+      proposal:
+        invalidRecipientTokenProposalPda,
+
+      tokenVault:
+        tokenVaultPda,
+
+      recipientTokenAccount:
+        recipientTokenAccount,
+
+      tokenProgram:
+        anchor.utils.token.TOKEN_PROGRAM_ID,
+    })
+    .signers([executor])
+    .rpc();
+
+  await program.methods
+    .removeProposal()
+    .accounts({
+      remover:
+        initializer.publicKey,
+
+      multisig:
+        multisigPda,
+
+      proposal:
+        invalidRecipientTokenProposalPda,
+    })
+    .rpc();
+});
+// ==================================================
+// TEST 56
+// WRONG MINT DURING TOKEN EXECUTION
+// ==================================================
+
+it("Rejects token execution when the supplied mint does not match the proposal", async () => {
+  const multisig =
+    await program.account.multisig.fetch(
+      multisigPda
+    );
+
+  const proposalId =
+    multisig.proposalCount;
+
+  const [wrongMintProposalPda] =
+    PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("proposal"),
+        multisigPda.toBuffer(),
+        proposalId.toArrayLike(
+          Buffer,
+          "le",
+          8
+        ),
+      ],
+      program.programId
+    );
+
+  await program.methods
+    .createProposal(
+      recipient.publicKey,
+      new anchor.BN(1_000_000),
+      testMint
+    )
+    .accounts({
+      creator:
+        initializer.publicKey,
+
+      multisig:
+        multisigPda,
+
+      proposal:
+        wrongMintProposalPda,
+
+      systemProgram:
+        SystemProgram.programId,
+    })
+    .rpc();
+
+  await program.methods
+    .approveProposal()
+    .accounts({
+      approver:
+        initializer.publicKey,
+
+      multisig:
+        multisigPda,
+
+      proposal:
+        wrongMintProposalPda,
+    })
+    .rpc();
+
+  await program.methods
+    .approveProposal()
+    .accounts({
+      approver:
+        owner2.publicKey,
+
+      multisig:
+        multisigPda,
+
+      proposal:
+        wrongMintProposalPda,
+    })
+    .signers([owner2])
+    .rpc();
+
+  const wrongMintRecipientAta =
+    await getOrCreateAssociatedTokenAccount(
+      provider.connection,
+      initializer.payer,
+      secondMint,
+      recipient.publicKey
+    );
+
+  try {
+    await program.methods
+      .executeTokenProposal()
+      .accounts({
+        executor:
+          executor.publicKey,
+
+        multisig:
+          multisigPda,
+
+        // Proposal says testMint,
+        // but we deliberately supply secondMint.
+        mint:
+          secondMint,
+
+        proposal:
+          wrongMintProposalPda,
+
+        tokenVault:
+          secondTokenVaultPda,
+
+        recipientTokenAccount:
+          wrongMintRecipientAta.address,
+
+        tokenProgram:
+          anchor.utils.token.TOKEN_PROGRAM_ID,
+      })
+      .signers([executor])
+      .rpc();
+
+    assert.fail(
+      "Wrong mint execution should fail"
+    );
+
+  } catch (error: any) {
+    const errorCode =
+      error?.error?.errorCode?.code;
+
+    console.log(
+      "Wrong mint execution rejected:",
+      errorCode
+    );
+
+    assert.equal(
+      errorCode,
+      "InvalidMint"
+    );
+  }
+});
+// ==================================================
+// TEST 57
+// SOL PROPOSAL CANNOT USE TOKEN EXECUTION
+// ==================================================
+
+it("Rejects executing a SOL proposal through the token execution instruction", async () => {
+  const multisig =
+    await program.account.multisig.fetch(
+      multisigPda
+    );
+
+  const proposalId =
+    multisig.proposalCount;
+
+  const [solProposalPda] =
+    PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("proposal"),
+        multisigPda.toBuffer(),
+        proposalId.toArrayLike(
+          Buffer,
+          "le",
+          8
+        ),
+      ],
+      program.programId
+    );
+
+  await program.methods
+    .createProposal(
+      recipient.publicKey,
+      new anchor.BN(
+        100_000_000
+      ),
+      null
+    )
+    .accounts({
+      creator:
+        initializer.publicKey,
+
+      multisig:
+        multisigPda,
+
+      proposal:
+        solProposalPda,
+
+      systemProgram:
+        SystemProgram.programId,
+    })
+    .rpc();
+
+  try {
+    await program.methods
+      .executeTokenProposal()
+      .accounts({
+        executor:
+          executor.publicKey,
+
+        multisig:
+          multisigPda,
+
+        mint:
+          testMint,
+
+        proposal:
+          solProposalPda,
+
+        tokenVault:
+          tokenVaultPda,
+
+        recipientTokenAccount:
+          recipientTokenAccount,
+
+        tokenProgram:
+          anchor.utils.token.TOKEN_PROGRAM_ID,
+      })
+      .signers([executor])
+      .rpc();
+
+    assert.fail(
+      "SOL proposal should not execute as token proposal"
+    );
+
+  } catch (error: any) {
+    const errorCode =
+      error?.error?.errorCode?.code;
+
+    console.log(
+      "SOL proposal correctly rejected by token execution:",
+      errorCode
+    );
+
+    assert.equal(
+      errorCode,
+      "InvalidMint"
+    );
+  }
+});
+// ==================================================
+// TEST 58
+// TOKEN PROPOSAL CANNOT USE SOL EXECUTION
+// ==================================================
+
+it("Rejects executing an SPL token proposal through the SOL execution instruction", async () => {
+  const multisig =
+    await program.account.multisig.fetch(
+      multisigPda
+    );
+
+  const proposalId =
+    multisig.proposalCount;
+
+  const [tokenProposalForSolExecutionPda] =
+    PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("proposal"),
+        multisigPda.toBuffer(),
+        proposalId.toArrayLike(
+          Buffer,
+          "le",
+          8
+        ),
+      ],
+      program.programId
+    );
+
+  await program.methods
+    .createProposal(
+      recipient.publicKey,
+      new anchor.BN(
+        1_000_000
+      ),
+      testMint
+    )
+    .accounts({
+      creator:
+        initializer.publicKey,
+
+      multisig:
+        multisigPda,
+
+      proposal:
+        tokenProposalForSolExecutionPda,
+
+      systemProgram:
+        SystemProgram.programId,
+    })
+    .rpc();
+
+  try {
+    await program.methods
+      .executeProposal()
+      .accounts({
+        executor:
+          executor.publicKey,
+
+        multisig:
+          multisigPda,
+
+        proposal:
+          tokenProposalForSolExecutionPda,
+
+        vault:
+          vaultPda,
+
+        recipient:
+          recipient.publicKey,
+
+        systemProgram:
+          SystemProgram.programId,
+      })
+      .signers([executor])
+      .rpc();
+
+    assert.fail(
+      "Token proposal should not execute as SOL proposal"
+    );
+
+  } catch (error: any) {
+    const errorCode =
+      error?.error?.errorCode?.code;
+
+    console.log(
+      "Token proposal correctly rejected by SOL execution:",
+      errorCode
+    );
+
+    assert.equal(
+      errorCode,
+      "InvalidMint"
+    );
+  }
+});
+// ==================================================
+// TEST 59
+// WRONG TOKEN VAULT
+// ==================================================
+
+it("Rejects execution with a token account that is not the multisig token vault PDA", async () => {
+  const multisig =
+    await program.account.multisig.fetch(
+      multisigPda
+    );
+
+  const proposalId =
+    multisig.proposalCount;
+
+  const [wrongVaultProposalPda] =
+    PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("proposal"),
+        multisigPda.toBuffer(),
+        proposalId.toArrayLike(
+          Buffer,
+          "le",
+          8
+        ),
+      ],
+      program.programId
+    );
+
+  await program.methods
+    .createProposal(
+      recipient.publicKey,
+      new anchor.BN(1_000_000),
+      testMint
+    )
+    .accounts({
+      creator:
+        initializer.publicKey,
+
+      multisig:
+        multisigPda,
+
+      proposal:
+        wrongVaultProposalPda,
+
+      systemProgram:
+        SystemProgram.programId,
+    })
+    .rpc();
+
+  await program.methods
+    .approveProposal()
+    .accounts({
+      approver:
+        initializer.publicKey,
+
+      multisig:
+        multisigPda,
+
+      proposal:
+        wrongVaultProposalPda,
+    })
+    .rpc();
+
+  await program.methods
+    .approveProposal()
+    .accounts({
+      approver:
+        owner2.publicKey,
+
+      multisig:
+        multisigPda,
+
+      proposal:
+        wrongVaultProposalPda,
+    })
+    .signers([owner2])
+    .rpc();
+
+  // Owner2's ATA is a valid token account for testMint,
+  // but it is NOT the multisig token-vault PDA.
+  const fakeVault =
+    await getOrCreateAssociatedTokenAccount(
+      provider.connection,
+      initializer.payer,
+      testMint,
+      owner2.publicKey
+    );
+
+  try {
+    await program.methods
+      .executeTokenProposal()
+      .accounts({
+        executor:
+          executor.publicKey,
+
+        multisig:
+          multisigPda,
+
+        mint:
+          testMint,
+
+        proposal:
+          wrongVaultProposalPda,
+
+        tokenVault:
+          fakeVault.address,
+
+        recipientTokenAccount:
+          recipientTokenAccount,
+
+        tokenProgram:
+          anchor.utils.token.TOKEN_PROGRAM_ID,
+      })
+      .signers([executor])
+      .rpc();
+
+    assert.fail(
+      "Wrong token vault should fail"
+    );
+
+  } catch (error: any) {
+    console.log(
+      "Wrong token vault correctly rejected"
+    );
+
+    assert.isTrue(
+      !!error
+    );
+  }
+});
+// ==================================================
+// TEST 60
+// CANCEL AND REMOVE TOKEN PROPOSAL
+// ==================================================
+
+it("Cancels and removes an SPL token proposal", async () => {
+  const multisig =
+    await program.account.multisig.fetch(
+      multisigPda
+    );
+
+  const proposalId =
+    multisig.proposalCount;
+
+  const [cancelTokenProposalPda] =
+    PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("proposal"),
+        multisigPda.toBuffer(),
+        proposalId.toArrayLike(
+          Buffer,
+          "le",
+          8
+        ),
+      ],
+      program.programId
+    );
+
+  await program.methods
+    .createProposal(
+      recipient.publicKey,
+      new anchor.BN(1_000_000),
+      testMint
+    )
+    .accounts({
+      creator:
+        initializer.publicKey,
+
+      multisig:
+        multisigPda,
+
+      proposal:
+        cancelTokenProposalPda,
+
+      systemProgram:
+        SystemProgram.programId,
+    })
+    .rpc();
+
+  await program.methods
+    .cancelProposal()
+    .accounts({
+      canceller:
+        initializer.publicKey,
+
+      multisig:
+        multisigPda,
+
+      proposal:
+        cancelTokenProposalPda,
+    })
+    .rpc();
+
+  await program.methods
+    .cancelProposal()
+    .accounts({
+      canceller:
+        owner2.publicKey,
+
+      multisig:
+        multisigPda,
+
+      proposal:
+        cancelTokenProposalPda,
+    })
+    .signers([owner2])
+    .rpc();
+
+  const proposal =
+    await program.account.proposal.fetch(
+      cancelTokenProposalPda
+    );
+
+  assert.isTrue(
+    "cancelled" in proposal.status
+  );
+
+  await program.methods
+    .removeProposal()
+    .accounts({
+      remover:
+        initializer.publicKey,
+
+      multisig:
+        multisigPda,
+
+      proposal:
+        cancelTokenProposalPda,
+    })
+    .rpc();
+
+  const accountAfter =
+    await provider.connection.getAccountInfo(
+      cancelTokenProposalPda
+    );
+
+  assert.isNull(
+    accountAfter
+  );
+
+  console.log(
+    "Cancelled token proposal successfully removed"
+  );
+});
 
 });
 
