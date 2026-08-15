@@ -209,6 +209,7 @@ pub mod multisig_wallet {
 
         let token_transfer_instruction = anchor_spl::token::TransferChecked{
             from: ctx.accounts.token_vault.to_account_info(),
+            mint: ctx.accounts.mint.to_account_info(),
             to: ctx.accounts.recipient_token_account.to_account_info(),
             authority: ctx.accounts.multisig.to_account_info(),
         };
@@ -335,7 +336,7 @@ pub struct Deposit<'info>{
         mut,
         seeds=[b"vault",multisig.key().as_ref()],
         bump,
-        constraint = vault.owner == system_program::ID
+        constraint = *vault.owner == system_program::ID
     )]
     pub vault:UncheckedAccount<'info>,
 
@@ -466,7 +467,7 @@ pub struct ExecuteProposal<'info>{
         mut,
         seeds=[b"vault",multisig.key().as_ref()],
         bump,
-        constraint = vault.owner == system_program::ID
+        constraint = *vault.owner == system_program::ID
     )]
     pub vault:UncheckedAccount<'info>,
 
