@@ -96,9 +96,12 @@ pub mod multisig_wallet {
         ctx.accounts.proposal.approvals=Vec::new();
         ctx.accounts.proposal.cancels=Vec::new();
         ctx.accounts.proposal.status=ProposalStatus::Pending;
-        ctx.accounts.proposal.proposal_id=ctx.accounts.multisig.proposal_count;
 
-        ctx.accounts.multisig.proposal_count+=1;
+        let proposal_id = ctx.accounts.multisig.proposal_count;
+        ctx.accounts.proposal.proposal_id = proposal_id;
+        ctx.accounts.multisig.proposal_count = proposal_id
+            .checked_add(1)
+            .ok_or(MultisigError::ProposalCountOverflow)?;
         Ok(())
         
     }
@@ -156,10 +159,12 @@ pub mod multisig_wallet {
         if !matches!(ctx.accounts.proposal.status,ProposalStatus::Ready){
             return Err(MultisigError::ProposalNotReady.into());
         }
+        let rent = Rent::get()?;
+        let minimum_balance = rent.minimum_balance(ctx.accounts.vault.data_len()); 
 
         let vault_balance = ctx.accounts.vault.lamports();
 
-        if vault_balance < ctx.accounts.proposal.amount {
+        if vault_balance < ctx.accounts.proposal.amount + minimum_balance {
             return Err(MultisigError::InsufficientVaultFunds.into());
         }
 
@@ -630,4 +635,6 @@ pub enum MultisigError{
     InvalidMint,
     #[msg("The owner of the token vault does not match the multisig")]
     InvalidOwner,
+    #[msg("The proposal count has overflowed")]
+    ProposalCountOverflow,
 }
