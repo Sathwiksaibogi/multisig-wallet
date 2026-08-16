@@ -8,12 +8,17 @@ skip-lint = false
 [programs.localnet]
 multisig_wallet = "6kAdP7S1poZufGSxJ63LHr2KuLNjgmwNomjhu7WgAv8B"
 
+[programs.devnet]
+multisig_wallet = "6kAdP7S1poZufGSxJ63LHr2KuLNjgmwNomjhu7WgAv8B"
+
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "localnet"
+cluster = "Devnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
 test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 \"tests/**/*.ts\""
+devnet-smoke = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 \"tests/devnet-smoke.ts\""
+devnet-token-smoke = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 \"tests/devnet-token-smoke.ts\""
