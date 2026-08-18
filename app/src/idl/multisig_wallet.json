@@ -1,0 +1,1273 @@
+{
+  "address": "6kAdP7S1poZufGSxJ63LHr2KuLNjgmwNomjhu7WgAv8B",
+  "metadata": {
+    "name": "multisig_wallet",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [
+    {
+      "name": "approve_proposal",
+      "discriminator": [
+        136,
+        108,
+        102,
+        85,
+        98,
+        114,
+        7,
+        147
+      ],
+      "accounts": [
+        {
+          "name": "approver",
+          "signer": true
+        },
+        {
+          "name": "multisig",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  117,
+                  108,
+                  116,
+                  105,
+                  115,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "multisig.initializer",
+                "account": "Multisig"
+              },
+              {
+                "kind": "account",
+                "path": "multisig.wallet_id",
+                "account": "Multisig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "proposal",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  112,
+                  111,
+                  115,
+                  97,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "multisig"
+              },
+              {
+                "kind": "account",
+                "path": "proposal.proposal_id",
+                "account": "Proposal"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "cancel_proposal",
+      "discriminator": [
+        106,
+        74,
+        128,
+        146,
+        19,
+        65,
+        39,
+        23
+      ],
+      "accounts": [
+        {
+          "name": "canceller",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "multisig",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  117,
+                  108,
+                  116,
+                  105,
+                  115,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "multisig.initializer",
+                "account": "Multisig"
+              },
+              {
+                "kind": "account",
+                "path": "multisig.wallet_id",
+                "account": "Multisig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "proposal",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  112,
+                  111,
+                  115,
+                  97,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "multisig"
+              },
+              {
+                "kind": "account",
+                "path": "proposal.proposal_id",
+                "account": "Proposal"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "create_proposal",
+      "discriminator": [
+        132,
+        116,
+        68,
+        174,
+        216,
+        160,
+        198,
+        22
+      ],
+      "accounts": [
+        {
+          "name": "creator",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "multisig",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  117,
+                  108,
+                  116,
+                  105,
+                  115,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "multisig.initializer",
+                "account": "Multisig"
+              },
+              {
+                "kind": "account",
+                "path": "multisig.wallet_id",
+                "account": "Multisig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "proposal",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  112,
+                  111,
+                  115,
+                  97,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "multisig"
+              },
+              {
+                "kind": "account",
+                "path": "multisig.proposal_count",
+                "account": "Multisig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "recipient",
+          "type": "pubkey"
+        },
+        {
+          "name": "amount",
+          "type": "u64"
+        },
+        {
+          "name": "mint",
+          "type": {
+            "option": "pubkey"
+          }
+        }
+      ]
+    },
+    {
+      "name": "deposit",
+      "discriminator": [
+        242,
+        35,
+        198,
+        137,
+        82,
+        225,
+        242,
+        182
+      ],
+      "accounts": [
+        {
+          "name": "depositor",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "multisig",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  117,
+                  108,
+                  116,
+                  105,
+                  115,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "multisig.initializer",
+                "account": "Multisig"
+              },
+              {
+                "kind": "account",
+                "path": "multisig.wallet_id",
+                "account": "Multisig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "docs": [
+            "and is used only as a SOL-holding account."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "multisig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "deposit_token",
+      "discriminator": [
+        11,
+        156,
+        96,
+        218,
+        39,
+        163,
+        180,
+        19
+      ],
+      "accounts": [
+        {
+          "name": "depositor",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "multisig",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  117,
+                  108,
+                  116,
+                  105,
+                  115,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "multisig.initializer",
+                "account": "Multisig"
+              },
+              {
+                "kind": "account",
+                "path": "multisig.wallet_id",
+                "account": "Multisig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "token_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  111,
+                  107,
+                  101,
+                  110,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "multisig"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "depositor_token_account",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "execute_proposal",
+      "discriminator": [
+        186,
+        60,
+        116,
+        133,
+        108,
+        128,
+        111,
+        28
+      ],
+      "accounts": [
+        {
+          "name": "executor",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "multisig",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  117,
+                  108,
+                  116,
+                  105,
+                  115,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "multisig.initializer",
+                "account": "Multisig"
+              },
+              {
+                "kind": "account",
+                "path": "multisig.wallet_id",
+                "account": "Multisig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "proposal",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  112,
+                  111,
+                  115,
+                  97,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "multisig"
+              },
+              {
+                "kind": "account",
+                "path": "proposal.proposal_id",
+                "account": "Proposal"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "docs": [
+            "as a SOL-holding account."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "multisig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "recipient",
+          "docs": [
+            "before the transfer is executed."
+          ],
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "execute_token_proposal",
+      "discriminator": [
+        205,
+        76,
+        88,
+        177,
+        131,
+        145,
+        70,
+        62
+      ],
+      "accounts": [
+        {
+          "name": "executor",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "multisig",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  117,
+                  108,
+                  116,
+                  105,
+                  115,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "multisig.initializer",
+                "account": "Multisig"
+              },
+              {
+                "kind": "account",
+                "path": "multisig.wallet_id",
+                "account": "Multisig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "proposal",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  112,
+                  111,
+                  115,
+                  97,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "multisig"
+              },
+              {
+                "kind": "account",
+                "path": "proposal.proposal_id",
+                "account": "Proposal"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  111,
+                  107,
+                  101,
+                  110,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "multisig"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "recipient_token_account",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize",
+      "discriminator": [
+        175,
+        175,
+        109,
+        31,
+        13,
+        152,
+        155,
+        237
+      ],
+      "accounts": [
+        {
+          "name": "initializer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "multisig",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  117,
+                  108,
+                  116,
+                  105,
+                  115,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "initializer"
+              },
+              {
+                "kind": "arg",
+                "path": "wallet_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "wallet_id",
+          "type": "u64"
+        },
+        {
+          "name": "owners",
+          "type": {
+            "vec": "pubkey"
+          }
+        },
+        {
+          "name": "threshold",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "initialize_token_vault",
+      "discriminator": [
+        64,
+        202,
+        113,
+        205,
+        22,
+        210,
+        178,
+        225
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "multisig",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  117,
+                  108,
+                  116,
+                  105,
+                  115,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "multisig.initializer",
+                "account": "Multisig"
+              },
+              {
+                "kind": "account",
+                "path": "multisig.wallet_id",
+                "account": "Multisig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "token_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  111,
+                  107,
+                  101,
+                  110,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "multisig"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize_vault",
+      "discriminator": [
+        48,
+        191,
+        163,
+        44,
+        71,
+        129,
+        63,
+        164
+      ],
+      "accounts": [
+        {
+          "name": "initializer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "multisig",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  117,
+                  108,
+                  116,
+                  105,
+                  115,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "multisig.initializer",
+                "account": "Multisig"
+              },
+              {
+                "kind": "account",
+                "path": "multisig.wallet_id",
+                "account": "Multisig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "docs": [
+            "as a SOL-holding account."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "multisig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "remove_proposal",
+      "discriminator": [
+        4,
+        78,
+        207,
+        45,
+        110,
+        54,
+        225,
+        207
+      ],
+      "accounts": [
+        {
+          "name": "remover",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "multisig",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  117,
+                  108,
+                  116,
+                  105,
+                  115,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "multisig.initializer",
+                "account": "Multisig"
+              },
+              {
+                "kind": "account",
+                "path": "multisig.wallet_id",
+                "account": "Multisig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "proposal",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  112,
+                  111,
+                  115,
+                  97,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "multisig"
+              },
+              {
+                "kind": "account",
+                "path": "proposal.proposal_id",
+                "account": "Proposal"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Multisig",
+      "discriminator": [
+        224,
+        116,
+        121,
+        186,
+        68,
+        161,
+        79,
+        236
+      ]
+    },
+    {
+      "name": "Proposal",
+      "discriminator": [
+        26,
+        94,
+        189,
+        187,
+        116,
+        136,
+        53,
+        33
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "NoOwners",
+      "msg": "The multisig must have at least one owner"
+    },
+    {
+      "code": 6001,
+      "name": "TooManyOwners",
+      "msg": "The multisig cannot have more than 10 owners"
+    },
+    {
+      "code": 6002,
+      "name": "InvalidThreshold",
+      "msg": "The threshold must be at least 1 and less than or equal to the number of owners"
+    },
+    {
+      "code": 6003,
+      "name": "DuplicateOwners",
+      "msg": "Duplicate owners are not allowed"
+    },
+    {
+      "code": 6004,
+      "name": "CreatorNotOwner",
+      "msg": "The creator is not an owner of the multisig"
+    },
+    {
+      "code": 6005,
+      "name": "ApproverNotOwner",
+      "msg": "The approver is not an owner of the multisig"
+    },
+    {
+      "code": 6006,
+      "name": "DoubleVoting",
+      "msg": "The approver has already voted for this proposal"
+    },
+    {
+      "code": 6007,
+      "name": "InvalidProposalWallet",
+      "msg": "The proposal does not belong to the specified multisig wallet"
+    },
+    {
+      "code": 6008,
+      "name": "ProposalNotPending",
+      "msg": "The proposal is not in pending state"
+    },
+    {
+      "code": 6009,
+      "name": "InvalidRecipient",
+      "msg": "The recipient does not match the proposal's recipient"
+    },
+    {
+      "code": 6010,
+      "name": "ProposalNotReady",
+      "msg": "The proposal is not ready for execution"
+    },
+    {
+      "code": 6011,
+      "name": "InvalidAmount",
+      "msg": "The transfer amount must be greater than zero"
+    },
+    {
+      "code": 6012,
+      "name": "InsufficientVaultFunds",
+      "msg": "The vault does not have enough SOL to execute this proposal"
+    },
+    {
+      "code": 6013,
+      "name": "ProposalNotExecuted",
+      "msg": "The proposal is not executed yet"
+    },
+    {
+      "code": 6014,
+      "name": "RemoverNotOwner",
+      "msg": "The remover is not an owner of the multisig"
+    },
+    {
+      "code": 6015,
+      "name": "CancellerNotOwner",
+      "msg": "The canceller is not an owner of the multisig"
+    },
+    {
+      "code": 6016,
+      "name": "DoubleCancellation",
+      "msg": "The canceller has already cancelled this proposal"
+    },
+    {
+      "code": 6017,
+      "name": "AlreadyVoted",
+      "msg": "The canceller has already voted for this proposal"
+    },
+    {
+      "code": 6018,
+      "name": "InvalidInitializer",
+      "msg": "The initializer is not valid for this multisig"
+    },
+    {
+      "code": 6019,
+      "name": "InvalidDepositor",
+      "msg": "The depositor is not valid for this token deposit"
+    },
+    {
+      "code": 6020,
+      "name": "InvalidMint",
+      "msg": "The mint does not match the expected token vault mint"
+    },
+    {
+      "code": 6021,
+      "name": "InvalidOwner",
+      "msg": "The owner of the token vault does not match the multisig"
+    },
+    {
+      "code": 6022,
+      "name": "ProposalCountOverflow",
+      "msg": "The proposal count has overflowed"
+    }
+  ],
+  "types": [
+    {
+      "name": "Multisig",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "initializer",
+            "type": "pubkey"
+          },
+          {
+            "name": "wallet_id",
+            "type": "u64"
+          },
+          {
+            "name": "owners",
+            "type": {
+              "vec": "pubkey"
+            }
+          },
+          {
+            "name": "threshold",
+            "type": "u8"
+          },
+          {
+            "name": "proposal_count",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Proposal",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "proposal_id",
+            "type": "u64"
+          },
+          {
+            "name": "creator",
+            "type": "pubkey"
+          },
+          {
+            "name": "recipient",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "mint",
+            "type": {
+              "option": "pubkey"
+            }
+          },
+          {
+            "name": "approvals",
+            "type": {
+              "vec": "pubkey"
+            }
+          },
+          {
+            "name": "cancels",
+            "type": {
+              "vec": "pubkey"
+            }
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": {
+                "name": "ProposalStatus"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "ProposalStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Pending"
+          },
+          {
+            "name": "Ready"
+          },
+          {
+            "name": "Executed"
+          },
+          {
+            "name": "Cancelled"
+          }
+        ]
+      }
+    }
+  ]
+}
